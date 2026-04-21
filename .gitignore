@@ -1,0 +1,16 @@
+# ── Fichiers sensibles — NE JAMAIS COMMITTER ──────────
+backend/.env
+backend/firebase-service-account.json
+backend/cache/data/
+backend/db/data/
+backend/logs/
+
+# ── Node modules ──────────────────────────────────────
+node_modules/
+backend/node_modules/
+
+# ── OS / IDE ──────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+*.log

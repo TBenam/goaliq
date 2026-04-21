@@ -1,0 +1,13 @@
+{
+  "name": "goaliq-pwa-root",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Root helpers for GoalIQ PWA",
+  "scripts": {
+    "api": "node backend/server.js",
+    "scheduler": "node backend/jobs/scheduler.js",
+    "frontend": "python -m http.server 5500",
+    "pipeline:once": "node backend/jobs/scheduler.js --once",
+    "backend:deps": "npm --prefix backend install"
+  }
+}

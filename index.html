@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="fr" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#006c49" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="GoalIQ" />
+  <meta name="application-name" content="GoalIQ" />
+  <meta name="msapplication-TileColor" content="#006c49" />
+
+  <!-- SEO -->
+  <title>GoalIQ – Pronostics Sport Premium | Afrique</title>
+  <meta name="description" content="GoalIQ : Les meilleurs pronostics sportifs pour l'Afrique francophone. Analyses IA, coupons combinés, La Montante, grosses cotes. Rejoignez 10 000 gagnants." />
+  <meta name="keywords" content="pronostics sportifs, paris sportifs, afrique, FCFA, football, analyse IA, VIP, GoalIQ" />
+  <meta name="robots" content="index, follow" />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="GoalIQ – Pronostics Sport Premium" />
+  <meta property="og:description" content="Les pronostics les plus précis d'Afrique. Analyses IA exclusives." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="icons/icon-512.png" />
+  <meta name="twitter:card" content="summary" />
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#006c49",
+            "primary-container": "#10b981",
+            "on-primary": "#ffffff",
+            "secondary": "#855300",
+            "secondary-container": "#fea619",
+            "on-secondary-fixed": "#2a1700",
+            "surface": "#f8f9fa",
+            "surface-container-low": "#f3f4f5",
+            "surface-container": "#edeeef",
+            "surface-container-high": "#e7e8e9",
+            "surface-container-lowest": "#ffffff",
+            "on-surface": "#191c1d",
+            "on-surface-variant": "#3c4a42",
+            "outline": "#6c7a71",
+            "outline-variant": "#bbcabf",
+            "error": "#ba1a1a",
+            "error-container": "#ffdad6"
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- Custom Design System -->
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <!-- Splash Screen (only on PWA standalone) -->
+  <div id="splash" aria-hidden="true">
+    <span class="splash-logo">GoalIQ</span>
+    <span class="splash-sub">Pronostics Premium</span>
+  </div>
+
+  <!-- Late Value Alert (floats from top) -->
+  <div id="late-value-alert" role="alert" aria-live="assertive">
+    <span class="alert-icon">🔥</span>
+    <div class="alert-body">
+      <div class="alert-title">Cote VIP en explosion — @5.80</div>
+      <div class="alert-sub">Inter vs Juventus • Score exact • Expiration dans 47min</div>
+    </div>
+    <a id="alert-cta-btn" href="#vip" class="alert-cta">Voir</a>
+    <button class="alert-close" id="alert-close-btn" aria-label="Fermer">✕</button>
+  </div>
+
+  <!-- Install Banner (shows install prompt) -->
+  <div id="install-banner" role="complementary" aria-label="Installer l'application">
+    <div class="install-icon">
+      <img src="icons/icon-192.png" alt="GoalIQ" onerror="this.style.display='none'" />
+    </div>
+    <div class="install-body">
+      <div class="install-title">Installer GoalIQ</div>
+      <div class="install-sub">Accès rapide + alertes push gratuites</div>
+    </div>
+    <button class="install-btn" id="install-btn">Installer</button>
+    <button class="install-close" id="install-close-btn" aria-label="Fermer">✕</button>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <!-- Main App Shell -->
+  <div id="app-shell">
+    <!-- Notification Bar (sticky) -->
+    <div id="notification-bar" aria-label="Statistiques du jour">
+      <span class="material-symbols-outlined icon-sm icon-filled" style="color: #6ffbbe;">trending_up</span>
+      <span>Taux de réussite (Hier) : <span class="stat-value">84%</span></span>
+      <span style="margin-left:8px; opacity:0.7;">|</span>
+      <span style="margin-left:8px; font-size:0.78rem;">ROI mensuel : <span class="stat-value">+14.2u</span></span>
+    </div>
+
+    <!-- Top App Bar -->
+    <header id="top-app-bar" role="banner">
+      <span class="app-logo">GoalIQ</span>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div id="streak-display" style="display:none;"></div>
+        <button class="btn-vip-top" id="go-vip-btn" aria-label="Passer en VIP">GO VIP ⚡</button>
+      </div>
+    </header>
+
+    <!-- App Content (views render here) -->
+    <main id="app-content" role="main" tabindex="-1">
+      <div id="app"></div>
+    </main>
+  </div>
+
+  <!-- Bottom Navigation -->
+  <nav id="bottom-nav" role="navigation" aria-label="Navigation principale">
+    <div class="nav-item active" id="nav-accueil" data-view="accueil" role="tab" aria-selected="true" tabindex="0">
+      <span class="nav-icon material-symbols-outlined icon-filled">home</span>
+      <span class="nav-label">Accueil</span>
+    </div>
+    <div class="nav-item" id="nav-pronos" data-view="pronos" role="tab" aria-selected="false" tabindex="0">
+      <span class="nav-icon material-symbols-outlined">insights</span>
+      <span class="nav-label">Pronos</span>
+    </div>
+    <div class="nav-item" id="nav-journal" data-view="journal" role="tab" aria-selected="false" tabindex="0">
+      <span class="nav-icon material-symbols-outlined">menu_book</span>
+      <span class="nav-label">Journal</span>
+    </div>
+    <div class="nav-item" id="nav-vip" data-view="vip" role="tab" aria-selected="false" tabindex="0">
+      <span class="nav-icon material-symbols-outlined">workspace_premium</span>
+      <span class="nav-label">VIP</span>
+    </div>
+  </nav>
+
+  <!-- VIP Modal (bottom sheet) -->
+  <div id="vip-modal" role="dialog" aria-modal="true" aria-label="Accès VIP GoalIQ">
+    <div class="modal-backdrop" id="modal-backdrop"></div>
+    <div class="modal-sheet" id="modal-sheet">
+      <div class="modal-handle"></div>
+
+      <!-- Modal Header -->
+      <div class="modal-header">
+        <div style="display:flex; justify-content:center; margin-bottom:14px;">
+          <span style="font-size:2.5rem;">👑</span>
+        </div>
+        <div class="modal-title">Rejoindre l'Élite</div>
+        <div class="modal-sub">
+          Accédez à l'intégralité des analyses IA, coupons combinés, grosses cotes et La Montante.
+        </div>
+      </div>
+
+      <!-- Trust Badges -->
+      <div style="display:flex; justify-content:center; gap:16px; margin:0 20px 20px; flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:5px;font-size:0.72rem;font-weight:700;color:var(--on-surface-variant);">
+          <span class="material-symbols-outlined icon-sm" style="color:var(--primary);">verified</span> 84% de réussite
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:0.72rem;font-weight:700;color:var(--on-surface-variant);">
+          <span class="material-symbols-outlined icon-sm" style="color:var(--secondary);">group</span> 2 800+ membres
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:0.72rem;font-weight:700;color:var(--on-surface-variant);">
+          <span class="material-symbols-outlined icon-sm" style="color:var(--primary);">lock</span> Annuler à tout moment
+        </div>
+      </div>
+
+      <!-- Pricing Grid -->
+      <div class="pricing-grid" id="pricing-grid">
+        <!-- Injected by app.js -->
+      </div>
+
+      <!-- Testimonial in modal -->
+      <div style="margin: 20px; padding: 14px 16px; background: rgba(0,108,73,0.06); border-radius: var(--radius-lg); border-left: 3px solid var(--primary);">
+        <div style="font-size:0.82rem; font-weight:600; font-style:italic; color:var(--on-surface); line-height:1.6; margin-bottom:8px;">
+          "J'avais essayé 3 autres services. GoalIQ est le seul qui m'a rendu rentable. La Montante m'a rapporté 87 500 FCFA en 7 jours."
+        </div>
+        <div style="font-size:0.72rem; font-weight:700; color:var(--primary);">— Mamadou K., Dakar 🇸🇳</div>
+      </div>
+
+      <!-- Close -->
+      <div style="text-align:center; padding: 0 20px;">
+        <button id="modal-close-btn" style="font-size:0.78rem;color:var(--outline);font-weight:500;background:none;border:none;cursor:pointer;padding:8px;">
+          Non merci, je préfère rater mes chances
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main App Script -->
+  <script src="app.js"></script>
+</body>
+</html>

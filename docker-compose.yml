@@ -1,0 +1,43 @@
+services:
+
+  # ── Backend Node.js (API + Cron scheduler) ──────────
+  api:
+    build: ./backend
+    container_name: goaliq-api
+    restart: always
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - FRONTEND_URL=${FRONTEND_URL}
+      - API_FOOTBALL_KEY=${API_FOOTBALL_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
+      - FIREBASE_SERVICE_ACCOUNT=${FIREBASE_SERVICE_ACCOUNT}
+      - ADMIN_SECRET=${ADMIN_SECRET}
+    volumes:
+      # Données persistantes : cache JSON + SQLite + logs
+      - goaliq_cache:/app/cache/data
+      - goaliq_db:/app/db/data
+      - goaliq_logs:/app/logs
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── Frontend Nginx (PWA statique) ───────────────────
+  frontend:
+    build: .
+    container_name: goaliq-frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+
+volumes:
+  goaliq_cache:
+  goaliq_db:
+  goaliq_logs:

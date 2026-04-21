@@ -1,0 +1,32 @@
+{
+  "name": "goaliq-backend",
+  "version": "1.0.0",
+  "description": "GoalIQ Backend — Data collector, Scoring Engine, Groq Analyzer, REST API",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon --experimental-specifier-resolution=node server.js",
+    "collect": "node jobs/scheduler.js --once",
+    "analyze": "node -e \"import('./jobs/groqAnalyzer.js').then(m => m.runDailyAnalysis())\""
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.3.1",
+    "firebase-admin": "^12.2.0",
+    "groq-sdk": "^0.8.0",
+    "helmet": "^7.1.0",
+    "node-cron": "^3.0.3",
+    "uuid": "^10.0.0",
+    "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

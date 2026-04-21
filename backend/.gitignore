@@ -1,0 +1,16 @@
+# Secrets et clés — NE JAMAIS COMMITTER
+.env
+*.env
+firebase-service-account.json
+firebase-service-account*.json
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Logs
+logs/
+*.log
+
+# Base locale
+db/data/
