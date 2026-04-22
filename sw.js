@@ -1,9 +1,9 @@
-﻿/* ====================================================
-   GOLIAT PWA - Service Worker v2
+/* ====================================================
+   GOLIAT PWA - Service Worker v4 (Wow Factor Update)
    Network-first for app shell, cache-first for static externals
    ==================================================== */
 
-const CACHE_NAME = 'goliat-v2';
+const CACHE_NAME = 'goliat-v4';
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -100,7 +100,7 @@ self.addEventListener('fetch', (event) => {
 
 self.addEventListener('push', (event) => {
   const defaults = {
-    title: 'GOLIAT - Alerte Cote',
+    title: 'Goliat - Alerte Cote',
     body: 'Une cote VIP vient d\'exploser. Agissez maintenant !',
     icon: '/icons/icon-192.png',
     badge: '/icons/icon-192.png',

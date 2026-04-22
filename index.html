@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr" dir="ltr">
 <head>
   <meta charset="UTF-8" />
@@ -7,18 +7,18 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="GOLIAT" />
-  <meta name="application-name" content="GOLIAT" />
+  <meta name="apple-mobile-web-app-title" content="Goliat" />
+  <meta name="application-name" content="Goliat" />
   <meta name="msapplication-TileColor" content="#006c49" />
 
   <!-- SEO -->
-  <title>GOLIAT – Pronostics Sport Premium | Afrique</title>
-  <meta name="description" content="GOLIAT : Les meilleurs pronostics sportifs pour l'Afrique francophone. Analyses IA, coupons combinés, La Montante, grosses cotes. Rejoignez 10 000 gagnants." />
-  <meta name="keywords" content="pronostics sportifs, paris sportifs, afrique, FCFA, football, analyse IA, VIP, GOLIAT" />
+  <title>Goliat – Pronostics Sport Premium | Afrique</title>
+  <meta name="description" content="Goliat : Les meilleurs pronostics sportifs pour l'Afrique francophone. Analyses IA, coupons combinés, La Montante, grosses cotes. Rejoignez 10 000 gagnants." />
+  <meta name="keywords" content="pronostics sportifs, paris sportifs, afrique, FCFA, football, analyse IA, VIP, Goliat" />
   <meta name="robots" content="index, follow" />
 
   <!-- Open Graph -->
-  <meta property="og:title" content="GOLIAT – Pronostics Sport Premium" />
+  <meta property="og:title" content="Goliat – Pronostics Sport Premium" />
   <meta property="og:description" content="Les pronostics les plus précis d'Afrique. Analyses IA exclusives." />
   <meta property="og:type" content="website" />
   <meta property="og:image" content="icons/icon-512.png" />
@@ -74,33 +74,46 @@
 <body>
   <!-- Splash Screen (only on PWA standalone) -->
   <div id="splash" aria-hidden="true">
-    <span class="splash-logo">GOLIAT</span>
+    <span class="splash-logo">Goliat</span>
     <span class="splash-sub">Pronostics Premium</span>
   </div>
 
   <!-- Late Value Alert (floats from top) -->
-  <div id="late-value-alert" role="alert" aria-live="assertive">
+  <div id="late-value-alert" class="swipe-dismiss" role="alert" aria-live="assertive">
     <span class="alert-icon">🔥</span>
     <div class="alert-body">
-      <div class="alert-title">Cote VIP en explosion — @5.80</div>
-      <div class="alert-sub">Inter vs Juventus • Score exact • Expiration dans 47min</div>
+      <div class="alert-title">Cote VIP en mouvement !</div>
+      <div class="alert-sub">Alertes en temps réel pour les membres</div>
     </div>
     <a id="alert-cta-btn" href="#vip" class="alert-cta">Voir</a>
     <button class="alert-close" id="alert-close-btn" aria-label="Fermer">✕</button>
   </div>
 
   <!-- Install Banner (shows install prompt) -->
-  <div id="install-banner" role="complementary" aria-label="Installer l'application">
+  <div id="install-banner" class="swipe-dismiss" role="complementary" aria-label="Installer l'application">
     <div class="install-icon">
-      <img src="icons/icon-192.png" alt="GOLIAT" onerror="this.style.display='none'" />
+      <img src="icons/icon-192.png" alt="Goliat" onerror="this.style.display='none'" />
     </div>
     <div class="install-body">
-      <div class="install-title">Installer GOLIAT</div>
+      <div class="install-title">Installer Goliat</div>
       <div class="install-sub">Accès rapide + alertes push gratuites</div>
     </div>
     <button class="install-btn" id="install-btn">Installer</button>
     <button class="install-close" id="install-close-btn" aria-label="Fermer">✕</button>
   </div>
+
+  <!-- Social Proof Gain Popup -->
+  <div id="gain-popup" class="gain-popup" role="status" aria-live="polite">
+    <div class="gain-avatar" id="gain-avatar">M</div>
+    <div class="gain-body">
+      <div class="gain-name" id="gain-name">Moussa</div>
+      <div class="gain-amount" id="gain-amount">+87 500 FCFA</div>
+      <div class="gain-action" id="gain-action">validé la Montante Jour 7</div>
+    </div>
+  </div>
+
+  <!-- Confetti Container -->
+  <div id="confetti-container" class="confetti-container"></div>
 
   <!-- Toast Notification -->
   <div id="toast" role="status" aria-live="polite"></div>
@@ -117,7 +130,7 @@
 
     <!-- Top App Bar -->
     <header id="top-app-bar" role="banner">
-      <span class="app-logo">GOLIAT</span>
+      <span class="app-logo">Goliat</span>
       <div style="display:flex; align-items:center; gap:10px;">
         <div id="streak-display" style="display:none;"></div>
         <button class="btn-vip-top" id="go-vip-btn" aria-label="Passer en VIP">GO VIP ⚡</button>
@@ -151,7 +164,7 @@
   </nav>
 
   <!-- VIP Modal (bottom sheet) -->
-  <div id="vip-modal" role="dialog" aria-modal="true" aria-label="Accès VIP GOLIAT">
+  <div id="vip-modal" role="dialog" aria-modal="true" aria-label="Accès VIP Goliat">
     <div class="modal-backdrop" id="modal-backdrop"></div>
     <div class="modal-sheet" id="modal-sheet">
       <div class="modal-handle"></div>
@@ -188,7 +201,7 @@
       <!-- Testimonial in modal -->
       <div style="margin: 20px; padding: 14px 16px; background: rgba(0,108,73,0.06); border-radius: var(--radius-lg); border-left: 3px solid var(--primary);">
         <div style="font-size:0.82rem; font-weight:600; font-style:italic; color:var(--on-surface); line-height:1.6; margin-bottom:8px;">
-          "J'avais essayé 3 autres services. GOLIAT est le seul qui m'a rendu rentable. La Montante m'a rapporté 87 500 FCFA en 7 jours."
+          "J'avais essayé 3 autres services. Goliat est le seul qui m'a rendu rentable. La Montante m'a rapporté 87 500 FCFA en 7 jours."
         </div>
         <div style="font-size:0.72rem; font-weight:700; color:var(--primary);">— Mamadou K., Dakar 🇸🇳</div>
       </div>

@@ -1,14 +1,16 @@
-﻿/* ====================================================
-   GOLIAT — Groq Analyzer (v2)
-   - Lit les matchs depuis le cache local (pas Firestore)
-   - Génère les analyses avec Llama-3.3-70b
-   - Sauvegarde les pronos en JSON local (cache/data/pronos.json)
-   - Firestore optionnel (si service account disponible)
+/* ====================================================
+   GOLIAT — Groq Analyzer v3
+   Architecture:
+   1. Score every match with Poisson engine
+   2. Quality gate: REJECT weak matches
+   3. Groq: analyze ONLY viable matches with strict prompt
+   4. Post-analysis validation: reject lazy/low-quality Groq output
+   5. Output: curated pronos list (max 4 free, rest VIP)
    ==================================================== */
 
 import Groq from 'groq-sdk';
 import { cacheGet, cacheWrite, cacheRead } from '../cache/manager.js';
-import { scoreMatch } from './scoringEngine.js';
+import { scoreMatch, rankMatchesByQuality } from './scoringEngine.js';
 import { logger } from '../utils/logger.js';
 
 let groqClient = null;
@@ -21,61 +23,113 @@ function getGroqClient() {
   return groqClient;
 }
 
-const SYSTEM_PROMPT = `Tu es Jean-Marc, analyste sportif senior pour GOLIAT.
-Spécialiste des marchés de paris, tu analyses les matchs avec précision et sans biais.
-Ton audience : parieurs sérieux du marché francophone africain qui cherchent de la vraie valeur.
-Réponds UNIQUEMENT en JSON valide, sans markdown, sans backticks.`;
+// ── Maximum free pronos ──────────────────────────────
+const MAX_FREE_PRONOS = 4;
+
+// ── System prompt: strict, expert-level ──────────────
+const SYSTEM_PROMPT = `Tu es un analyste quantitatif professionnel de paris sportifs pour la plateforme GOLIAT.
+
+RÈGLES ABSOLUES:
+1. Tu INTERDIS les pronos "Match nul" sauf si la probabilité Poisson du nul est ≥ 35% ET que tu peux justifier avec au moins 2 signaux convergents.
+2. Tu dois TOUJOURS privilégier un marché actionnable: victoire d'une équipe, Over/Under, BTTS, Double Chance.
+3. Tu ne produis JAMAIS de prono si tu n'as pas de conviction forte. Mieux vaut dire "SKIP" que produire un prono faible.
+4. Ta fiabilité doit refléter ta VRAIE confiance. Ne gonfle jamais ce chiffre.
+5. Tu analyses les données Poisson, la forme, le H2H, et les prédictions API pour construire ton raisonnement.
+6. ALERTES BLESSURES : Si des joueurs clés sont blessés (absents), tu dois IMPÉRATIVEMENT ajuster ta prédiction (ex: éviter de parier sur une équipe diminuée).
+7. SMART MONEY (Dropping Odds) : Si la cote réelle du bookmaker est beaucoup plus basse que notre cote Poisson, c'est que le marché (smart money) a une info. Suis cette tendance.
+8. FATIGUE ET ENJEUX : L'enjeu de fin de saison (titre/maintien) et le risque de rotation (match européen dans les 4 jours) priment sur les statistiques nues. Un favori qui joue la Ligue des Champions dans 3 jours fera tourner son effectif.
+9. Ton analyse VIP doit démontrer une réflexion tactique approfondie, pas juste reformuler les stats.
+
+Réponds UNIQUEMENT en JSON valide, sans markdown, sans backticks.
+Si tu ne vois aucun prono viable: { "skip": true, "reason": "..." }`;
 
 // ── Generate analysis for one match ──────────────────
-async function analyzeMatchWithGroq(match) {
-  const scoring = scoreMatch(match);
+async function analyzeMatchWithGroq(match, scoring) {
+  const poissonSummary = scoring.poisson;
+  const bestMkt = scoring.bestMarket;
+  const h2h = scoring.h2hSummary;
+  const apiPred = scoring.apiPredictions;
 
-  const userPrompt = `Analyse ce match et génère un pronostic actionnable.
-
-MATCH: ${match.home_team} vs ${match.away_team}
-COMPÉTITION: ${match.league_name} ${match.league_flag || ''}
+  const userPrompt = `MATCH: ${match.home_team} vs ${match.away_team}
+COMPÉTITION: ${match.league_name} (${match.league_country || ''})
 COUP D'ENVOI: ${new Date(match.kickoff).toLocaleString('fr', { weekday:'long', day:'2-digit', month:'long', hour:'2-digit', minute:'2-digit' })}
 STADE: ${match.venue || 'Non communiqué'}
 
-━━ STATISTIQUES ━━
-Forme récente domicile (5J): ${match.home_form || 'N/A'} 
-Forme récente extérieur (5J): ${match.away_form || 'N/A'}
-Buts marqués/match domicile: ${match.home_goals_avg}
-Buts encaissés/match domicile: ${match.home_goals_conceded}
-Buts marqués/match extérieur: ${match.away_goals_avg}
-Buts encaissés/match extérieur: ${match.away_goals_conceded}
+═══ MODÈLE POISSON GOLIAT ═══
+Victoire domicile: ${poissonSummary.homeWinProb}% | Nul: ${poissonSummary.drawProb}% | Victoire extérieur: ${poissonSummary.awayWinProb}%
+xG domicile: ${scoring.homeXg} | xG extérieur: ${scoring.awayXg} | Total xG: ${scoring.totalXg}
+Over 2.5: ${poissonSummary.over25Prob}% | Under 2.5: ${100 - poissonSummary.over25Prob}%
+BTTS Oui: ${poissonSummary.bttsProb}% | BTTS Non: ${100 - poissonSummary.bttsProb}%
+Scores les plus probables: ${poissonSummary.topScores.map(s => `${s.score} (${s.prob}%)`).join(', ')}
 
-━━ SCORING ALGORITHMIQUE GOLIAT ━━
-Score domicile (0-100): ${scoring.home_win_score}
-Probabilité Over 2.5: ${scoring.over25_prob}%
-Probabilité BTTS: ${scoring.btts_prob}%
-xG estimé domicile: ${scoring.home_expected_goals} | xG extérieur: ${scoring.away_expected_goals}
-Signaux détectés: ${scoring.signals.join(', ') || 'aucun signal dominant'}
-Risques détectés: ${scoring.warnings.join(', ') || 'aucun'}
-Recommandation algo: ${scoring.recommendation} | Confiance: ${scoring.confidence}
+═══ FORME RÉCENTE (5 derniers matchs) ═══
+Domicile: ${match.home_form || 'N/A'}${scoring.homeForm !== null ? ` (score: ${scoring.homeForm}/100)` : ''}
+Extérieur: ${match.away_form || 'N/A'}${scoring.awayForm !== null ? ` (score: ${scoring.awayForm}/100)` : ''}
 
-Génère ce JSON EXACT (respecte les types):
+═══ STATISTIQUES SAISON ═══
+Buts marqués/match domicile: ${match.home_goals_avg} | Buts encaissés: ${match.home_goals_conceded}
+Buts marqués/match extérieur: ${match.away_goals_avg} | Buts encaissés: ${match.away_goals_conceded}
+
+${h2h ? `═══ CONFRONTATIONS DIRECTES (${h2h.total} matchs) ═══
+Victoires domicile: ${h2h.homeWins} | Nuls: ${h2h.draws} | Victoires extérieur: ${h2h.awayWins}
+Moyenne de buts: ${h2h.avgGoals}/match` : '═══ H2H: non disponible ═══'}
+
+${apiPred ? `═══ PRÉDICTIONS API-FOOTBALL (algorithme Poisson externe) ═══
+Domicile: ${apiPred.homeProb}% | Nul: ${apiPred.drawProb}% | Extérieur: ${apiPred.awayProb}%
+Conseil: "${apiPred.advice}"` : '═══ Prédictions API: non disponibles ═══'}
+
+${scoring.injuriesSummary ? `═══ BLESSURES & SUSPENSIONS (Absences confirmées) ═══
+Domicile: ${scoring.injuriesSummary.home} absent(s)
+Extérieur: ${scoring.injuriesSummary.away} absent(s)
+Détails: ${scoring.injuriesSummary.details.map(i => `${i.player} (${i.team_name}: ${i.reason})`).join(', ')}` : '═══ BLESSURES: non communiquées ═══'}
+
+${scoring.standingsSummary ? `═══ CLASSEMENT & ENJEUX MATHÉMATIQUES ═══
+Domicile: Classé ${scoring.standingsSummary.homeRank || '?'} ${scoring.standingsSummary.homeDesc ? `(${scoring.standingsSummary.homeDesc})` : ''}
+Extérieur: Classé ${scoring.standingsSummary.awayRank || '?'} ${scoring.standingsSummary.awayDesc ? `(${scoring.standingsSummary.awayDesc})` : ''}` : '═══ CLASSEMENT: non disponible ═══'}
+
+${(scoring.nextMatchSummary?.home || scoring.nextMatchSummary?.away) ? `═══ CALENDRIER & RISQUE DE ROTATION (FATIGUE) ═══
+${scoring.nextMatchSummary.home ? `Domicile joue: ${scoring.nextMatchSummary.home.opponent} (${scoring.nextMatchSummary.home.competition}) dans ${scoring.nextMatchSummary.home.days_rest} jours` : 'Domicile: pas de match proche'}
+${scoring.nextMatchSummary.away ? `Extérieur joue: ${scoring.nextMatchSummary.away.opponent} (${scoring.nextMatchSummary.away.competition}) dans ${scoring.nextMatchSummary.away.days_rest} jours` : 'Extérieur: pas de match proche'}` : '═══ CALENDRIER: non disponible ═══'}
+
+${scoring.bookmakerOdds ? `═══ COTES BOOKMAKERS VS MODÈLE (Détection Smart Money) ═══
+Cote réelle Victoire Domicile: @${scoring.bookmakerOdds.home} (Notre cote Poisson: @${(100/poissonSummary.homeWinProb).toFixed(2)})
+Cote réelle Victoire Extérieur: @${scoring.bookmakerOdds.away} (Notre cote Poisson: @${(100/poissonSummary.awayWinProb).toFixed(2)})` : '═══ COTES RÉELLES: non disponibles ═══'}
+
+═══ MEILLEUR MARCHÉ IDENTIFIÉ PAR GOLIAT ═══
+${bestMkt ? `${bestMkt.label} — ${bestMkt.prob}% (cote estimée ~${bestMkt.estimatedOdds})` : 'Aucun marché dominant'}
+Force: ${bestMkt?.strength || 'N/A'} | Confiance globale: ${scoring.confidence} (${scoring.confidenceScore}/100)
+Signaux: ${scoring.signals.join(' | ') || 'aucun'}
+Alertes: ${scoring.warnings.join(' | ') || 'aucune'}
+
+═══ MARCHÉS ALTERNATIFS DÉTECTÉS ═══
+${scoring.markets.slice(0, 4).map(m => `• ${m.label}: ${m.prob}% (~@${m.estimatedOdds})`).join('\n')}
+
+INSTRUCTIONS:
+1. Évalue si ce match mérite un pronostic. Si les données sont trop pauvres ou le match trop incertain, renvoie { "skip": true, "reason": "..." }
+2. Si un prono est viable, choisis le MEILLEUR marché parmi ceux proposés. NE CHOISIS PAS "Match Nul" sauf justification exceptionnelle.
+3. Ta cote_estimee doit être réaliste (dérivée de la probabilité: cote ≈ 100/probabilité).
+4. Ta fiabilite doit refléter la convergence des signaux (Poisson + forme + H2H + API).
+
+JSON requis:
 {
-  "prono_principal": "ex: Victoire Real Madrid / Plus de 2.5 buts / BTTS",
+  "skip": false,
+  "prono_principal": "Victoire Manchester City",
   "cote_estimee": 1.85,
-  "fiabilite": 82,
-  "categorie": "Safe",
-  "analyse_courte": "2 phrases factuel sans jargon pour les non-VIP.",
-  "analyse_vip": "Analyse tactique complète 100-150 mots avec xG, forme, facteurs clés. Style journal expert.",
-  "marche_alternatif": "BTTS",
+  "fiabilite": 72,
+  "categorie": "Safe|Value|Score Exact|BTTS|Grosse Cote",
+  "analyse_courte": "2 phrases percutantes pour les non-VIP.",
+  "analyse_vip": "Analyse tactique complète 100-150 mots. Mentionne xG, Poisson, forme, H2H, facteurs clés. Style expert.",
+  "marche_alternatif": "Over 2.5",
   "cote_marche_alternatif": 1.65,
-  "risque": "Faible",
+  "risque": "Faible|Moyen|Élevé",
   "valeur_detectee": true,
   "tags_marketing": ["Tag1", "Tag2"],
   "conseil_bankroll": "2% de mise"
-}
-Note: categorie doit être l'un de: Safe, Value, Score Exact, BTTS, Grosse Cote`;
+}`;
 
   try {
     const groq = getGroqClient();
-    if (!groq) {
-      throw new Error('GROQ_API_KEY manquant');
-    }
+    if (!groq) throw new Error('GROQ_API_KEY manquant');
 
     const completion = await groq.chat.completions.create({
       messages: [
@@ -83,41 +137,66 @@ Note: categorie doit être l'un de: Safe, Value, Score Exact, BTTS, Grosse Cote`
         { role: 'user', content: userPrompt }
       ],
       model: 'llama-3.3-70b-versatile',
-      temperature: 0.2,
-      max_tokens: 800,
+      temperature: 0.15,  // Even more deterministic
+      max_tokens: 900,
       response_format: { type: 'json_object' }
     });
 
-    return JSON.parse(completion.choices[0].message.content);
+    const result = JSON.parse(completion.choices[0].message.content);
+
+    // ── Post-Analysis Validation ──────────────────────
+    if (result.skip) {
+      logger.info(`  ⏭️  ${match.home_team} vs ${match.away_team} → SKIP: ${result.reason}`);
+      return null;
+    }
+
+    // Reject lazy "match nul" unless Poisson supports it
+    if (result.prono_principal && result.prono_principal.toLowerCase().includes('match nul')) {
+      if (poissonSummary.drawProb < 30) {
+        logger.warn(`  🚫 ${match.home_team} vs ${match.away_team} → Rejeté: "Match Nul" avec seulement ${poissonSummary.drawProb}% de probabilité Poisson`);
+        // Force use the best market from our engine instead
+        if (bestMkt) {
+          result.prono_principal = bestMkt.label;
+          result.cote_estimee = bestMkt.estimatedOdds;
+          result.fiabilite = Math.min(result.fiabilite || 65, Math.round(bestMkt.prob * 0.9));
+          logger.info(`  🔄 Remplacé par: ${bestMkt.label} @${bestMkt.estimatedOdds}`);
+        } else {
+          return null; // No viable alternative
+        }
+      }
+    }
+
+    // Reject inflated fiabilite
+    if (result.fiabilite > 90) result.fiabilite = 85;
+    if (scoring.confidence === 'low' && result.fiabilite > 70) result.fiabilite = 65;
+    if (scoring.confidence === 'medium' && result.fiabilite > 82) result.fiabilite = 78;
+
+    return result;
   } catch (err) {
     logger.warn(`[Groq] Erreur ${match.home_team} vs ${match.away_team}:`, err.message);
     return buildFallbackAnalysis(match, scoring);
   }
 }
 
-// ── Fallback if Groq fails ────────────────────────────
+// ── Fallback if Groq fails (uses scoring engine directly) ─
 function buildFallbackAnalysis(match, scoring) {
-  const rec = scoring.recommendation;
-  let prono, cote;
-
-  if (rec === 'home_win') { prono = `Victoire ${match.home_team}`; cote = 1.75; }
-  else if (rec === 'away_win') { prono = `Victoire ${match.away_team}`; cote = 2.10; }
-  else if (rec === 'over25') { prono = 'Plus de 2.5 buts'; cote = 1.80; }
-  else { prono = 'Les deux équipes marquent'; cote = 1.65; }
+  const bestMkt = scoring.bestMarket;
+  if (!bestMkt) return null; // No market = no prono
 
   return {
-    prono_principal: prono,
-    cote_estimee: cote,
-    fiabilite: Math.max(55, scoring.home_win_score),
-    categorie: scoring.confidence === 'high' ? 'Safe' : 'Value',
-    analyse_courte: `Analyse basée sur la forme récente et les statistiques de buts de la saison.`,
-    analyse_vip: `Score algorithmique ${scoring.home_win_score}/100. xG estimé: ${match.home_team} ${scoring.home_expected_goals} | ${match.away_team} ${scoring.away_expected_goals}. ${scoring.signals.join('. ')}.`,
-    marche_alternatif: scoring.over25_prob >= 65 ? 'Over 2.5' : 'Double Chance',
-    cote_marche_alternatif: 1.50,
+    skip: false,
+    prono_principal: bestMkt.label,
+    cote_estimee: bestMkt.estimatedOdds,
+    fiabilite: Math.min(70, Math.round(bestMkt.prob * 0.85)),
+    categorie: bestMkt.prob >= 65 ? 'Safe' : 'Value',
+    analyse_courte: `Analyse algorithmique basée sur le modèle Poisson GOLIAT. ${scoring.signals.slice(0, 2).join('. ')}.`,
+    analyse_vip: `Modèle Poisson: xG ${match.home_team} ${scoring.homeXg} | ${match.away_team} ${scoring.awayXg}. ${scoring.signals.join('. ')}. ${scoring.warnings.length > 0 ? 'Attention: ' + scoring.warnings.join('. ') : ''}`,
+    marche_alternatif: scoring.markets[1]?.label || 'Double Chance',
+    cote_marche_alternatif: scoring.markets[1]?.estimatedOdds || 1.40,
     risque: scoring.confidence === 'high' ? 'Faible' : 'Moyen',
-    valeur_detectee: false,
-    tags_marketing: scoring.signals.slice(0, 2),
-    conseil_bankroll: '2% de mise conseillé'
+    valeur_detectee: bestMkt.strength === 'strong',
+    tags_marketing: [match.league_name, bestMkt.type.replace('_', ' ')],
+    conseil_bankroll: scoring.confidence === 'high' ? '3% de mise' : '2% de mise'
   };
 }
 
@@ -154,24 +233,49 @@ export async function runDailyAnalysis() {
   today.setHours(0, 0, 0, 0);
   const horizon = new Date(today.getTime() + 2 * 86400000);
 
-  // Filter matches for today + tomorrow to mirror the collector horizon
-  const matchesToAnalyze = matchCache.data.filter(m => {
+  // Filter matches for today + tomorrow
+  const allMatches = matchCache.data.filter(m => {
     const kickoff = new Date(m.kickoff);
     return kickoff >= today && kickoff < horizon;
   });
 
-  logger.info(`[Groq] 🧠 Analyse de ${matchesToAnalyze.length} matchs avec Llama-3.3-70b...`);
+  logger.info(`[Pipeline] 📋 ${allMatches.length} matchs dans le pipeline`);
+
+  // ── STEP 1: Score ALL matches with Poisson engine ──
+  logger.info('[Pipeline] 🧮 Étape 1: Scoring Poisson de tous les matchs...');
+  const ranked = rankMatchesByQuality(allMatches);
+
+  logger.info(`[Pipeline] ✅ ${ranked.length}/${allMatches.length} matchs ont passé le Quality Gate`);
+  const rejected = allMatches.length - ranked.length;
+  if (rejected > 0) {
+    logger.info(`[Pipeline] 🚫 ${rejected} matchs rejetés (données insuffisantes ou match trop incertain)`);
+  }
+
+  if (ranked.length === 0) {
+    logger.warn('[Pipeline] Aucun match n\'a passé le Quality Gate. Aucun prono généré.');
+    cacheWrite('pronos', []);
+    return [];
+  }
+
+  // ── STEP 2: Groq analysis on quality matches only ──
+  logger.info(`[Pipeline] 🧠 Étape 2: Analyse Groq de ${ranked.length} matchs qualifiés...`);
 
   const pronos = [];
-  let freeCount = 0, vipCount = 0;
+  let freeCount = 0, vipCount = 0, skipped = 0;
 
-  for (const match of matchesToAnalyze) {
-    const analysis = await analyzeMatchWithGroq(match);
+  for (const { match, scoring } of ranked) {
+    const analysis = await analyzeMatchWithGroq(match, scoring);
 
-    // Determine if VIP content
-    const isVip = analysis.fiabilite >= 78
+    if (!analysis || analysis.skip) {
+      skipped++;
+      continue;
+    }
+
+    // Determine VIP status based on quality + category
+    const isVip = freeCount >= MAX_FREE_PRONOS  // Cap free at MAX_FREE_PRONOS
+      || analysis.fiabilite >= 78
       || ['Score Exact', 'Grosse Cote'].includes(analysis.categorie)
-      || analysis.cote_estimee >= 3.0;
+      || (analysis.cote_estimee && analysis.cote_estimee >= 3.0);
 
     const prono = {
       fixture_id: match.fixture_id,
@@ -191,20 +295,42 @@ export async function runDailyAnalysis() {
       fiabilite: analysis.fiabilite,
       is_vip: isVip,
       result: null,
-      scoring_data: scoreMatch(match),
+      scoring_data: {
+        homeXg: scoring.homeXg,
+        awayXg: scoring.awayXg,
+        poisson: scoring.poisson,
+        confidence: scoring.confidence,
+        confidenceScore: scoring.confidenceScore,
+        bestMarket: scoring.bestMarket,
+        topScores: scoring.topScores
+      },
       generated_at: new Date().toISOString()
     };
 
     pronos.push(prono);
     if (isVip) vipCount++; else freeCount++;
 
-    logger.info(`  ✓ ${match.home_team} vs ${match.away_team} → ${analysis.prono_principal} @${analysis.cote_estimee} (${analysis.fiabilite}%) ${isVip ? '[VIP]' : '[FREE]'}`);
+    const badge = isVip ? '[VIP]' : '[FREE]';
+    const confBadge = `[conf:${scoring.confidenceScore}]`;
+    logger.info(`  ✓ ${match.home_team} vs ${match.away_team} → ${analysis.prono_principal} @${analysis.cote_estimee} (${analysis.fiabilite}%) ${badge} ${confBadge}`);
 
     // Optional Firestore save
     await tryFirestoreSave(prono);
 
-    // 600ms pause between Groq calls (rate limit)
-    await new Promise(r => setTimeout(r, 600));
+    // 800ms pause between Groq calls (rate limit)
+    await new Promise(r => setTimeout(r, 800));
+  }
+
+  // ── Determine if we have new/different pronos ──────
+  let hasNewProno = true;
+  const oldCache = cacheGet('pronos', 48); // Get existing cache up to 48h old
+  if (oldCache && oldCache.data) {
+    const oldPronosMap = new Map(oldCache.data.map(p => [String(p.fixture_id), p.prono]));
+    // Check if any prono is new or has a different prediction
+    hasNewProno = pronos.some(p => {
+      const oldProno = oldPronosMap.get(String(p.fixture_id));
+      return !oldProno || oldProno !== p.prono_principal;
+    });
   }
 
   // ── Save to local cache (PRIMARY) ──────────────────
@@ -213,11 +339,19 @@ export async function runDailyAnalysis() {
   }
 
   const duration = ((Date.now() - start) / 1000).toFixed(1);
-  logger.info(`[Groq] ✅ ${pronos.length} pronos générés en ${duration}s (${freeCount} gratuits, ${vipCount} VIP)`);
+  logger.info(`[Pipeline] ═══════════════════════════════════════════`);
+  logger.info(`[Pipeline] ✅ RÉSULTAT FINAL:`);
+  logger.info(`[Pipeline]    ${pronos.length} pronos publiés en ${duration}s`);
+  logger.info(`[Pipeline]    ${freeCount} gratuits (max ${MAX_FREE_PRONOS}) | ${vipCount} VIP`);
+  logger.info(`[Pipeline]    ${skipped} matchs skippés par l'IA (pas assez convaincants)`);
+  logger.info(`[Pipeline]    ${rejected} matchs rejetés au Quality Gate`);
+  logger.info(`[Pipeline] ═══════════════════════════════════════════`);
 
-  // Send FCM push notification
-  if (pronos.length > 0) {
+  // Send FCM push notification ONLY if there are new/different pronos
+  if (pronos.length > 0 && hasNewProno) {
     await notifySubscribers(pronos.length, freeCount);
+  } else if (pronos.length > 0) {
+    logger.info(`[Pipeline] Pas de nouveaux pronos détectés, notification ignorée.`);
   }
 
   return pronos;

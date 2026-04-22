@@ -32,7 +32,7 @@ messaging.onBackgroundMessage((payload) => {
   const { title, body, imageUrl } = payload.notification || {};
   const data = payload.data || {};
 
-  const notificationTitle = title || '🔥 GOLIAT — Nouvelle alerte';
+  const notificationTitle = title || '🔥 Goliat — Nouvelle alerte';
   const notificationOptions = {
     body: body || 'Un nouveau prono est disponible !',
     icon: '/icons/icon-192.png',

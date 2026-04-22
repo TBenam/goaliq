@@ -11,6 +11,11 @@ const DEFAULT_RESULTS_CRON = '*/30 * * * *';
 let schedulerStarted = false;
 let pipelineTask = null;
 let resultsTask = null;
+let promoTask = null;
+
+function getPromoCron() {
+  return process.env.PROMO_VIP_CRON || '0 17 * * *'; // Everyday at 17:00 by default
+}
 
 function getIntervalHours() {
   const parsed = Number.parseInt(process.env.PIPELINE_INTERVAL_HOURS || `${DEFAULT_INTERVAL_HOURS}`, 10);
@@ -37,6 +42,7 @@ export function getSchedulerStatus() {
     interval_hours: getIntervalHours(),
     pipelineCron: getPipelineCron(),
     resultsCron: getResultsCron(),
+    promoCron: getPromoCron(),
     timezone: getTimezone()
   };
 }
@@ -101,6 +107,29 @@ export async function runResultsRefresh(reason = 'results-cron') {
   }
 }
 
+export async function sendPromoNotification() {
+  const promos = [
+    { title: '🔥 Alerte VIP', body: 'André a gagné 60 000F en pariant 2000F hier. Rejoins le VIP !' },
+    { title: '👑 La Montante VIP', body: 'Le palier 4 a été validé ! Ne rate pas le prochain match.' },
+    { title: '⚡ Grosse Cote VIP validée', body: 'Score exact @9.50 validé hier. Rejoins l\'élite.' }
+  ];
+  const promo = promos[Math.floor(Math.random() * promos.length)];
+
+  try {
+    const { db, sendPushToTokens } = await import('../firebase/admin.js');
+    if (!db) return;
+
+    const snap = await db.collection('fcm_tokens').where('is_vip', '==', false).get();
+    const tokens = snap.docs.map(d => d.data().token).filter(Boolean);
+    if (!tokens.length) return;
+
+    await sendPushToTokens(tokens, promo, { url: '/#vip', type: 'promo_vip' });
+    logger.info(`[FCM] Promo VIP envoyée à ${tokens.length} utilisateurs non-VIP`);
+  } catch (err) {
+    logger.warn('[FCM] Erreur Promo VIP:', err.message);
+  }
+}
+
 export function startScheduler({ runOnStart = true, skipStartupIfFresh = true } = {}) {
   if (schedulerStarted) {
     return getSchedulerStatus();
@@ -109,6 +138,7 @@ export function startScheduler({ runOnStart = true, skipStartupIfFresh = true } 
   const timezone = getTimezone();
   const pipelineCron = getPipelineCron();
   const resultsCron = getResultsCron();
+  const promoCron = getPromoCron();
 
   pipelineTask = cron.schedule(pipelineCron, () => {
     runFullPipeline(`cron-${getIntervalHours()}h`).catch(() => {});
@@ -118,10 +148,15 @@ export function startScheduler({ runOnStart = true, skipStartupIfFresh = true } 
     runResultsRefresh('results-cron').catch(() => {});
   }, { timezone });
 
+  promoTask = cron.schedule(promoCron, () => {
+    sendPromoNotification().catch(() => {});
+  }, { timezone });
+
   schedulerStarted = true;
 
   logger.info(`[Scheduler] Pipeline: ${pipelineCron} (${timezone})`);
   logger.info(`[Scheduler] Resultats: ${resultsCron} (${timezone})`);
+  logger.info(`[Scheduler] Promo VIP: ${promoCron} (${timezone})`);
 
   if (runOnStart) {
     setTimeout(() => {

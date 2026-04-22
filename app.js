@@ -54,10 +54,10 @@ function getVipCode() {
 function buildWaLink(plan) {
   const code = getVipCode();
   const messages = {
-    weekly:    `Bonjour GOLIAT 👋\n\nJe souhaite souscrire au plan *VIP 7 jours* (3 500 FCFA).\n\nMon code d'activation : *${code}*\n\nMerci !`,
-    monthly:   `Bonjour GOLIAT 👋\n\nJe souhaite souscrire au plan *VIP Mensuel* (10 000 FCFA).\n\nMon code d'activation : *${code}*\n\nMerci !`,
-    quarterly: `Bonjour GOLIAT 👋\n\nJe souhaite souscrire au plan *VIP Trimestriel* (25 000 FCFA).\n\nMon code d'activation : *${code}*\n\nMerci !`,
-    bonus:     `Bonjour GOLIAT 👋\n\nJe veux débloquer le *Prono Caché Bonus* (1 000 FCFA).\n\nMon code d'activation : *${code}*\n\nMerci !`
+    weekly:    `Bonjour Goliat 👋\n\nJe souhaite souscrire au plan *VIP 7 jours* (3 500 FCFA).\n\nMon code d'activation : *${code}*\n\nMerci !`,
+    monthly:   `Bonjour Goliat 👋\n\nJe souhaite souscrire au plan *VIP Mensuel* (10 000 FCFA).\n\nMon code d'activation : *${code}*\n\nMerci !`,
+    quarterly: `Bonjour Goliat 👋\n\nJe souhaite souscrire au plan *VIP Trimestriel* (25 000 FCFA).\n\nMon code d'activation : *${code}*\n\nMerci !`,
+    bonus:     `Bonjour Goliat 👋\n\nJe veux débloquer le *Prono Caché Bonus* (1 000 FCFA).\n\nMon code d'activation : *${code}*\n\nMerci !`
   };
   const msg = encodeURIComponent(messages[plan] || messages.monthly);
   return `https://wa.me/${WA_NUMBER}?text=${msg}`;
@@ -65,7 +65,7 @@ function buildWaLink(plan) {
 
 const CONFIG = {
   version: '1.0.0',
-  appName: 'GOLIAT',
+  appName: 'Goliat',
   payment: {
     weekly: {
       id: 'weekly',
@@ -99,118 +99,182 @@ const CONFIG = {
 };
 
 
+const ANALYSES_POOL = [
+  {
+    free: {
+      kicker: 'Bases Bankroll',
+      titre: 'L\'importance de la gestion de bankroll',
+      extrait: 'La règle numéro un du parieur n\'est pas de gagner, mais de ne pas tout perdre. Découvrez pourquoi miser plus de 5% de son capital sur un pari est une erreur mathématique qui mène inévitablement à la banqueroute.',
+      emoji: '💰',
+      bgGradient: 'linear-gradient(135deg, #1e3a8a, #3b82f6)'
+    },
+    vip: [
+      {
+        kicker: 'Modèles Probabilistes',
+        titre: 'Modélisation Poisson : Scores exacts',
+        extrait: 'La loi de Poisson permet de modéliser le nombre de buts attendus. En calculant les forces d\'attaque et de défense relatives, découvrez comment notre IA détecte les cotes "Value" sur les scores exacts.',
+        emoji: '📐',
+        temps: 'Il y a 3h'
+      },
+      {
+        kicker: 'Smart Money',
+        titre: 'Analyse des baisses de cotes (Dropping odds)',
+        extrait: 'Suivez l\'argent intelligent. Une chute soudaine de la cote d\'une équipe à l\'extérieur indique souvent une information privée : blessure cachée ou rotation massive.',
+        emoji: '📉',
+        temps: 'Hier'
+      }
+    ]
+  },
+  {
+    free: {
+      kicker: 'Psychologie',
+      titre: 'La psychologie du parieur : Éviter le tilt',
+      extrait: 'Le "tilt", ou la perte de contrôle émotionnel après une série de paris perdants, est le pire ennemi du parieur. Apprenez à accepter la variance et à garder une approche logique.',
+      emoji: '🧠',
+      bgGradient: 'linear-gradient(135deg, #4c1d95, #8b5cf6)'
+    },
+    vip: [
+      {
+        kicker: 'Analyse Avancée',
+        titre: 'Exploitation des Expected Goals (xG) en direct',
+        extrait: 'Les xG ne servent pas qu\'à analyser le passé. En live, une équipe avec un fort différentiel de xG généré contre les buts réels marqués offre d\'énormes opportunités sur les paris.',
+        emoji: '🎯',
+        temps: 'Il y a 1h'
+      },
+      {
+        kicker: 'Stratégie de Couverture',
+        titre: 'Couvrir ses paris (Hedging)',
+        extrait: 'Quand utiliser le Cash Out manuellement ? Le hedging permet de sécuriser des profits ou réduire les risques, mais les bookmakers prennent une marge. Voici la formule mathématique.',
+        emoji: '🛡️',
+        temps: 'Hier'
+      }
+    ]
+  },
+  {
+    free: {
+      kicker: 'Concept Clé',
+      titre: 'Comprendre la "Value Bet" : L\'essentiel',
+      extrait: 'Parier sur une équipe juste parce qu\'elle "va gagner" est une erreur. Une Value Bet existe uniquement quand la probabilité réelle de l\'événement est supérieure à celle estimée par la cote.',
+      emoji: '💎',
+      bgGradient: 'linear-gradient(135deg, #14532d, #22c55e)'
+    },
+    vip: [
+      {
+        kicker: 'Stratégie Live',
+        titre: 'Corners pour trouver des values en live',
+        extrait: 'La domination territoriale ne se traduit pas toujours par des buts. L\'analyse croisée de la possession dans le tiers adverse et des corners concédés permet de parier intelligemment.',
+        emoji: '🚩',
+        temps: 'Il y a 4h'
+      },
+      {
+        kicker: 'Facteurs Externes',
+        titre: 'Fatigue structurelle : l\'impact du calendrier',
+        extrait: 'Les équipes jouant l\'Europe en milieu de semaine sous-performent statistiquement de 14% lors de leur match de championnat suivant. Comment identifier ces failles de cotation.',
+        emoji: '🔋',
+        temps: 'Avant-hier'
+      }
+    ]
+  },
+  {
+    free: {
+      kicker: 'Les Pièges',
+      titre: 'Pourquoi éviter les paris combinés gigantesques',
+      extrait: 'Les bookmakers adorent les parieurs qui combinent 10 matchs. La marge du bookmaker se multiplie à chaque sélection, détruisant mathématiquement toute espérance de gain sur le long terme.',
+      emoji: '⚠️',
+      bgGradient: 'linear-gradient(135deg, #7f1d1d, #ef4444)'
+    },
+    vip: [
+      {
+        kicker: 'Profilage',
+        titre: 'Les paris sur les buteurs : croiser xG et faiblesses',
+        extrait: 'Parier sur un buteur demande plus que son nom. Découvrez comment nous croisons les "Expected Goals" d\'un attaquant avec la propension de l\'équipe adverse à concéder des occasions.',
+        emoji: '👟',
+        temps: 'Il y a 2h'
+      },
+      {
+        kicker: 'Marchés de niche',
+        titre: 'Erreurs de cotation sur les ligues mineures',
+        extrait: 'Les bookmakers manquent de données précises sur les championnats de seconde division ou les ligues exotiques. C\'est là que les algorithmes prédictifs créent le plus de marge.',
+        emoji: '🌍',
+        temps: 'Hier'
+      }
+    ]
+  },
+  {
+    free: {
+      kicker: 'Analyse Météo',
+      titre: 'L\'impact de la météo sur les matchs de football',
+      extrait: 'Ne pariez jamais sans regarder la météo. Une forte pluie ou des vents violents nivellent les niveaux techniques et augmentent drastiquement la probabilité de matchs pauvres en buts.',
+      emoji: '⛈️',
+      bgGradient: 'linear-gradient(135deg, #0f766e, #14b8a6)'
+    },
+    vip: [
+      {
+        kicker: 'Stratégie',
+        titre: 'Stratégie avancée sur le "Draw No Bet" (DNB)',
+        extrait: 'Le pari "Remboursé si Nul" est sous-utilisé. Il permet de sécuriser des cotes intéressantes tout en éliminant un des trois résultats possibles. Découvrez dans quelles configurations il est indispensable.',
+        emoji: '⚖️',
+        temps: 'Il y a 5h'
+      },
+      {
+        kicker: 'Gestion de Capital',
+        titre: 'Modèle de Kelly Criterion pour optimiser les mises',
+        extrait: 'Plutôt que des mises fixes, le critère de Kelly ajuste la taille de votre pari proportionnellement à la Value détectée (Avantage). Une approche mathématique pour maximiser la croissance.',
+        emoji: '📈',
+        temps: 'Il y a 10h'
+      }
+    ]
+  }
+];
+
+function generateBigMatchAiAnalysis(match) {
+  const matchLabel = match.match || `${match.equipe1 || 'Équipe'} vs ${match.equipe2 || 'Adversaire'}`;
+  return {
+    kicker: 'Intelligence Artificielle',
+    titre: `Décryptage IA : ${matchLabel}`,
+    extrait: `Nos algorithmes ont ciblé cette affiche majeure de ${match.competition || 'Championnat'}. En modélisant les Expected Goals (xG), la profondeur de banc et la variance de forme récente, l'IA identifie une forte Value sur le prono "${match.prono}". Le raisonnement s'appuie sur la corrélation entre les zones de faiblesses défensives adverses et le volume de création d'occasions de l'équipe ciblée. Edge détecté à la cote de @${match.cote}.`,
+    emoji: '🤖',
+    temps: 'À l\'instant',
+    isAiGen: true
+  };
+}
+
+function getDailyAnalyses() {
+  const dayIndex = new Date().getDate() % ANALYSES_POOL.length;
+  // Clone to avoid mutating the static pool
+  const daily = JSON.parse(JSON.stringify(ANALYSES_POOL[dayIndex]));
+
+  // Inject dynamic AI analysis for big matches if any are available today
+  const allPronos = [...(DATA.pronos_gratuits || []), ...(DATA.pronos_vip || [])];
+  const topComps = ['champions league', 'ligue des champions', 'premier league', 'laliga', 'serie a', 'europa league', 'euro', 'world cup', 'mondial'];
+  
+  const bigMatch = allPronos.find(p => p && p.competition && topComps.some(c => p.competition.toLowerCase().includes(c)));
+  
+  if (bigMatch) {
+    const aiArticle = generateBigMatchAiAnalysis(bigMatch);
+    // Add it as the first VIP article so it appears prominently in the expert feed
+    daily.vip.unshift(aiArticle);
+  }
+
+  return daily;
+}
+
 /* ============================================================
    DATA — Pronostics, articles, témoignages
    ============================================================ */
 const DATA = {
   stats: { taux: 84, roi: '+14.2u', cote_vip: '4.50', membres: '2 847' },
 
-  pronos_gratuits: [
-    {
-      id: 1,
-      competition: 'Champions League',
-      match: 'Real Madrid vs Bayern',
-      equipe1: '⚪', equipe2: '🔴',
-      prono: 'Victoire Real Madrid',
-      cote: 1.85,
-      heure: '21:00',
-      fiabilite: 88,
-      categorie: 'Safe',
-      description: 'Le champion en titre à domicile domine clairement les stats de possession.'
-    },
-    {
-      id: 2,
-      competition: 'Ligue 1',
-      match: 'PSG vs Lens',
-      equipe1: '🔵', equipe2: '🟡',
-      prono: 'Plus de 2.5 buts',
-      cote: 1.65,
-      heure: '19:00',
-      fiabilite: 76,
-      categorie: 'Value',
-      description: 'Deux attaques prolifiques se rencontrent dans un match à fort enjeu.'
-    }
-  ],
+  pronos_gratuits: [],
 
-  pronos_vip: [
-    {
-      id: 10,
-      competition: 'Premier League',
-      match: 'Arsenal vs Chelsea',
-      equipe1: '🔴', equipe2: '🔵',
-      prono: 'Score exact 2-1',
-      cote: 8.50,
-      heure: '17:30',
-      categorie: 'Score Exact',
-      locked: true
-    },
-    {
-      id: 11,
-      competition: 'Bundesliga',
-      match: 'Dortmund vs Bayern',
-      equipe1: '🟡', equipe2: '🔴',
-      prono: 'Les deux marquent',
-      cote: 1.72,
-      heure: '18:30',
-      categorie: 'BTTS',
-      locked: true
-    },
-    {
-      id: 12,
-      competition: 'Serie A',
-      match: 'Inter vs Juventus',
-      equipe1: '🔵', equipe2: '⚫',
-      prono: 'Moins de 2.5 buts',
-      cote: 2.10,
-      heure: '20:45',
-      categorie: 'Safe',
-      locked: true
-    }
-  ],
+  pronos_vip: [],
 
-  historique: [
-    { match: 'PSG vs Marseille', marche: 'Victoire Domicile + +2.5 Buts', cote: 1.85, ligue: 'Ligue 1', date: 'Hier, 21:00', gagne: true },
-    { match: 'Dortmund vs RB Leipzig', marche: 'Les deux équipes marquent', cote: 1.62, ligue: 'Bundesliga', date: '25 Avr, 20:45', gagne: true },
-    { match: 'Arsenal vs Liverpool', marche: 'Score Exact 1-1', cote: 6.50, ligue: 'Premier League', date: '24 Avr, 18:30', gagne: false },
-    { match: 'Real Madrid vs Betis', marche: 'Victoire Real Madrid', cote: 1.45, ligue: 'LaLiga', date: '23 Avr, 21:00', gagne: true },
-    { match: 'Man City vs Arsenal', marche: 'Plus 3.5 buts', cote: 2.20, ligue: 'Premier League', date: '22 Avr, 20:00', gagne: true },
-    { match: 'Napoli vs Roma', marche: 'Score Exact 2-0', cote: 9.00, ligue: 'Serie A', date: '21 Avr, 20:45', gagne: true }
-  ],
-
-  journal_articles: [
-    {
-      id: 1,
-      kicker: 'Analyse Profonde',
-      titre: 'Pourquoi la Premier League est piégeuse ce soir',
-      extrait: "Les data-modèles signalent une instabilité inhabituelle sur les marchés de l'Over 2.5 en Angleterre. Décryptage des facteurs de variance qui peuvent faire exploser votre bankroll.",
-      emoji: '📊',
-      temps: 'Il y a 2h',
-      locked: false
-    },
-    {
-      id: 2,
-      kicker: 'Marché des Buteurs',
-      titre: 'Mbappé vs Haaland : Le duel des probabilités',
-      extrait: "L'analyse croisée des expected goals révèle une anomalie de cote sur ce week-end. Le marché sous-estime la fatigue structurelle des deux équipes défensives.",
-      emoji: '⚡',
-      temps: 'Il y a 4h',
-      locked: true
-    },
-    {
-      id: 3,
-      kicker: 'Stratégie Long Terme',
-      titre: "L'influence tactique de la météo en Bundesliga",
-      extrait: "Trop souvent ignoré, le facteur climatique est une composante clé de nos algorithmes. Certains stades ouverts subissent des courants d'air qui impactent les ballons longs de +12%.",
-      emoji: '🌬️',
-      temps: 'Hier',
-      locked: true
-    }
-  ],
+  historique: [],
 
   tendances: [
-    { rang: '01', titre: 'Chute des cotes sur le Real Madrid', detail: 'Volume de mises anormal sur le nul.' },
-    { rang: '02', titre: 'Série A : Faille détectée à Naples', detail: 'Concentration de data sur les corners.' },
-    { rang: '03', titre: 'PSG : Form disparate sur les déplacements', detail: 'Moins de 2.5 buts à 78% sur 10 matchs.' }
+    { rang: '01', titre: 'Chute des cotes sur le favori', detail: 'Volume de mises anormal sur le nul détecté.' },
+    { rang: '02', titre: 'Faille détectée en Serie A', detail: 'Concentration de data sur les corners.' },
+    { rang: '03', titre: 'Anomalie des déplacements en Ligue 1', detail: 'Moins de 2.5 buts à 78% sur 10 matchs.' }
   ],
 
   temoignages: [
@@ -223,9 +287,9 @@ const DATA = {
   live_feed: [
     { nom: 'Moussa', ville: 'Dakar', gain: '+87 500 FCFA', action: 'validé la Montante Jour 7' },
     { nom: 'Fatou', ville: 'Abidjan', gain: '+42 000 FCFA', action: 'gagné le coupon combiné @4.50' },
-    { nom: 'Kofi', ville: 'Accra', gain: '+18 200 FCFA', action: 'validé Real Madrid @1.85' },
+    { nom: 'Kofi', ville: 'Accra', gain: '+18 200 FCFA', action: 'validé le prono Safe @1.85' },
     { nom: 'Aminata', ville: 'Bamako', gain: '+215 000 FCFA', action: 'touché le score exact @9.00' },
-    { nom: 'Franck', ville: 'Douala', gain: '+55 000 FCFA', action: 'validé Inter vs Juventus' },
+    { nom: 'Franck', ville: 'Douala', gain: '+55 000 FCFA', action: 'validé le combo Serie A' },
     { nom: 'Modibo', ville: 'Conakry', gain: '+31 500 FCFA', action: 'gagné avec les grosses cotes VIP' }
   ],
 
@@ -237,12 +301,16 @@ const DATA = {
     rendement: '+900%',
     jour_actuel: 3,
     paliers: [
-      { jour: 1, match: 'Man. City vs Chelsea', prono: 'City over 1.5 buts', cote: 1.30, gain: '+3 000', gagne: true },
-      { jour: 2, match: 'Real Madrid vs Valence', prono: 'Victoire Real Madrid', cote: 1.45, gain: '+4 500', gagne: true },
-      { jour: 3, match: 'Marseille vs Lyon', prono: 'Victoire Marseille', cote: 1.85, gain: null, gagne: null }
+      { jour: 1, match: 'Match Ligue 1 — Safe', prono: 'Favori over 1.5 buts', cote: 1.30, gain: '+3 000', gagne: true },
+      { jour: 2, match: 'Match LaLiga — Safe', prono: 'Victoire favori domicile', cote: 1.45, gain: '+4 500', gagne: true },
+      { jour: 3, match: 'Match Ligue 1 — Value', prono: 'Victoire extérieur', cote: 1.85, gain: null, gagne: null }
     ]
   }
 };
+
+if (DATA.temoignages?.[1]?.texte) {
+  DATA.temoignages[1].texte = DATA.temoignages[1].texte.replace('GOLIAT', CONFIG.appName);
+}
 
 function getCurrentDateLabel() {
   return new Intl.DateTimeFormat('fr-FR', {
@@ -257,6 +325,43 @@ function getCurrentDateLabelWithYear() {
     month: 'long',
     year: 'numeric'
   }).format(new Date());
+}
+
+function formatKickoffTime(kickoff) {
+  if (!kickoff) return '--:--';
+  const date = new Date(kickoff);
+  if (Number.isNaN(date.getTime())) return '--:--';
+
+  return date.toLocaleTimeString('fr-FR', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+function mapPronoForUi(prono = {}, options = {}) {
+  const locked = options.locked ?? Boolean(prono.locked);
+  const hideDetails = options.hideDetails ?? false;
+  const matchLabel = prono.match || [prono.home_team, prono.away_team].filter(Boolean).join(' vs ') || 'Match à confirmer';
+  const odds = prono.cote ?? prono.cote_estimee;
+
+  return {
+    id: prono.fixture_id || prono.id || `${matchLabel}-${prono.kickoff || prono.heure || ''}`,
+    fixture_id: prono.fixture_id || prono.id || null,
+    competition: prono.competition || prono.league_name || 'Pronostic du jour',
+    match: matchLabel,
+    equipe1: prono.equipe1 || '⚽',
+    equipe2: prono.equipe2 || '🏆',
+    home_team_logo: prono.home_team_logo || null,
+    away_team_logo: prono.away_team_logo || null,
+    prono: hideDetails ? 'Verrouillé' : (prono.prono || prono.prono_principal || 'Analyse en cours'),
+    cote: hideDetails ? '?.??' : (odds ?? '--'),
+    heure: prono.heure || formatKickoffTime(prono.kickoff),
+    fiabilite: Number.isFinite(Number(prono.fiabilite)) ? Number(prono.fiabilite) : 0,
+    categorie: prono.categorie || (locked ? 'VIP' : 'Pronostic'),
+    description: prono.description || prono.analyse_courte || '',
+    analyse_vip: prono.analyse_vip || '',
+    locked
+  };
 }
 
 function splitMatchLabel(match = '') {
@@ -281,13 +386,25 @@ function getFeaturedProno() {
 
 function buildFeaturedPronoCard() {
   const featuredProno = getFeaturedProno();
+  if (!featuredProno) {
+    return `
+      <div class="card-elevated mb-6" id="main-match-card" style="padding:28px;text-align:center;">
+        <span class="material-symbols-outlined" style="font-size:3rem;color:var(--primary);margin-bottom:12px;display:block;opacity:0.5;">hourglass_top</span>
+        <div style="font-weight:900;font-size:1.1rem;margin-bottom:6px;">Analyses en cours…</div>
+        <div style="font-size:0.82rem;color:var(--on-surface-variant);line-height:1.6;max-width:280px;margin:0 auto;">Notre IA analyse les matchs du jour. Le pronostic principal apparaîtra ici dès qu’il sera prêt.</div>
+        <div style="margin-top:20px;display:flex;flex-direction:column;gap:10px;">
+          <div style="height:50px;background:var(--surface-container);border-radius:var(--radius-lg);animation:pulse-badge 1.5s infinite;"></div>
+          <div style="height:30px;background:var(--surface-container-high);border-radius:var(--radius-md);width:70%;margin:0 auto;animation:pulse-badge 1.5s infinite;"></div>
+        </div>
+      </div>`;
+  }
   const { home, away } = splitMatchLabel(featuredProno?.match);
   const competition = featuredProno?.competition || 'Pronostic du jour';
   const kickoff = featuredProno?.heure || '--:--';
   const prono = featuredProno?.prono || 'Analyse en cours';
   const cote = featuredProno?.cote || '--';
   const analysis = featuredProno?.analyse_vip || featuredProno?.description || 'Les analyses automatiques seront affichées ici dès que le pipeline serveur termine son cycle.';
-  const shareMatch = jsStringLiteral(featuredProno?.match || 'GOLIAT');
+  const shareMatch = jsStringLiteral(featuredProno?.match || CONFIG.appName);
   const shareProno = jsStringLiteral(prono);
   const shareCote = Number(featuredProno?.cote || 0);
 
@@ -360,6 +477,48 @@ function hydrateRenderedView(container, view) {
   }
 }
 
+async function refreshLiveData() {
+  try {
+    const [freePronos, todayData, history, vipPronos] = await Promise.all([
+      API.loadFreeProno(),
+      API.loadTodayPronos(),
+      API.loadHistory(),
+      STATE.isVip ? API.loadVipProno() : Promise.resolve(null)
+    ]);
+
+    if (freePronos?.length > 0) {
+      DATA.pronos_gratuits = freePronos;
+    } else if (todayData?.free?.length > 0) {
+      DATA.pronos_gratuits = todayData.free.map((p) => mapPronoForUi(p));
+    }
+
+    if (history?.length > 0) {
+      DATA.historique = history;
+    }
+
+    if (STATE.isVip && vipPronos?.length > 0) {
+      DATA.pronos_vip = vipPronos;
+    } else if (todayData?.vip_preview?.length > 0) {
+      DATA.pronos_vip = todayData.vip_preview.map((p) =>
+        mapPronoForUi(p, {
+          locked: p.locked !== false,
+          hideDetails: p.locked !== false
+        })
+      );
+    }
+
+    if (todayData?.meta?.total > 0) {
+      console.info(`[${CONFIG.appName}] ${todayData.meta.total} pronos chargés depuis le serveur ✅`);
+    }
+
+    if (['accueil', 'pronos', 'vip'].includes(STATE.currentView)) {
+      App.render(STATE.currentView);
+    }
+  } catch (err) {
+    console.warn('[Init] Synchronisation live impossible:', err.message);
+  }
+}
+
 /* ============================================================
    FIREBASE CLIENT — Initialize lazily when IDs are available
    ============================================================ */
@@ -419,6 +578,8 @@ const FirebaseClient = {
     return _fbUser.getIdToken();
   }
 };
+
+/* (shareTicket is defined once in the UI object — duplicates removed) */
 
 /* ============================================================
    API LAYER — Calls to backend, with static DATA fallback
@@ -579,6 +740,28 @@ const API = {
   }
 };
 
+API.loadFreeProno = async function () {
+  try {
+    const pronos = await this.fetch('/pronos/free');
+    if (!pronos || pronos.length === 0) return DATA.pronos_gratuits;
+    return pronos.map((p) => mapPronoForUi(p));
+  } catch (err) {
+    console.warn('[API] Fallback pronos gratuits:', err.message);
+    return DATA.pronos_gratuits;
+  }
+};
+
+API.loadVipProno = async function () {
+  try {
+    const pronos = await this.fetch('/pronos/vip');
+    return (pronos || []).map((p) => mapPronoForUi(p, { locked: false }));
+  } catch (err) {
+    if (err.code === 'VIP_REQUIRED') return null;
+    console.warn('[API] Fallback pronos VIP:', err.message);
+    return DATA.pronos_vip;
+  }
+};
+
 /* ============================================================
    STATE
    ============================================================ */
@@ -587,6 +770,10 @@ const STATE = {
   isVip: false,
   streak: 1,
   deferredInstallPrompt: null,
+  lastDataRefresh: null,       // Timestamp of last successful API data load
+  _countdownIntervals: [],     // Countdown timer interval IDs
+  _gainPopupTimer: null,       // Social proof popup timer
+  _flashTimerInterval: null,   // Flash offer countdown interval
 
   init() {
     // VIP status
@@ -670,11 +857,16 @@ const C = {
   // Match card (free)
   matchCard(prono) {
     const { home, away } = splitMatchLabel(prono.match);
+    const countdownHtml = Enhancements.buildCountdownBadge(prono.kickoff || prono.heure);
+    const liveStatus = Enhancements.getLiveStatus(prono);
     return `
       <div class="match-card mb-4">
         <div class="match-header">
           <span class="badge badge-primary">${prono.competition}</span>
-          <span style="font-size:0.78rem;font-weight:600;color:var(--outline);">${prono.heure}</span>
+          <div style="display:flex;align-items:center;gap:6px;">
+            ${liveStatus ? `<span class="live-badge">${liveStatus}</span>` : ''}
+            ${countdownHtml || `<span style="font-size:0.78rem;font-weight:600;color:var(--outline);">${prono.heure}</span>`}
+          </div>
         </div>
         <div class="match-teams">
           <div class="team">
@@ -744,13 +936,48 @@ const C = {
       </div>`;
   },
 
-  // Testimonial
+  // Testimonial (used in carousel)
   testimonial(t) {
     return `
       <div class="testimonial-card">
         <div class="testimonial-stars">${'★'.repeat(t.etoiles)}</div>
         <div class="testimonial-body">"${t.texte}"</div>
         <div class="testimonial-author">— ${t.auteur}, ${t.ville} ${t.pays}</div>
+      </div>`;
+  },
+
+  // Testimonial carousel with dots
+  testimonialCarousel(testimonials) {
+    return `
+      <div class="testimonial-carousel" id="testimonial-carousel">
+        ${testimonials.map(t => this.testimonial(t)).join('')}
+      </div>
+      <div class="carousel-dots" id="carousel-dots">
+        ${testimonials.map((_, i) => `<div class="carousel-dot ${i === 0 ? 'active' : ''}" data-idx="${i}"></div>`).join('')}
+      </div>`;
+  },
+
+  // Last updated timestamp
+  lastUpdated() {
+    if (!STATE.lastDataRefresh) return '';
+    const ago = Enhancements.timeAgo(STATE.lastDataRefresh);
+    return `
+      <div class="last-updated">
+        <span class="material-symbols-outlined">update</span>
+        Mis à jour ${ago}
+      </div>`;
+  },
+
+  // Flash offer timer
+  flashOfferTimer() {
+    return `
+      <div class="flash-timer" id="flash-offer-timer">
+        <span>⏱️ Expire dans</span>
+        <span class="timer-digit" id="flash-hours">03</span>
+        <span class="timer-sep">:</span>
+        <span class="timer-digit" id="flash-minutes">45</span>
+        <span class="timer-sep">:</span>
+        <span class="timer-digit" id="flash-seconds">00</span>
       </div>`;
   }
 };
@@ -818,8 +1045,20 @@ const Views = {
           <h2 class="section-title">Pronos Gratuits</h2>
           <span class="section-link" onclick="Router.navigate('pronos')" style="cursor:pointer;">Voir tout →</span>
         </div>
+        ${C.lastUpdated()}
 
-        <div id="accueil-free-pronos">${DATA.pronos_gratuits.map(p => C.matchCard(p)).join('')}</div>
+        <div id="accueil-free-pronos">${DATA.pronos_gratuits.length > 0
+          ? DATA.pronos_gratuits.map(p => C.matchCard(p)).join('')
+          : `<div style="background:var(--surface-container-lowest);border-radius:var(--radius-xl);padding:28px;text-align:center;">
+              <span class="material-symbols-outlined" style="font-size:2.5rem;color:var(--primary);margin-bottom:8px;display:block;">sports_soccer</span>
+              <div style="font-weight:800;font-size:1rem;margin-bottom:6px;">Pronos en préparation</div>
+              <div style="font-size:0.82rem;color:var(--on-surface-variant);line-height:1.6;">Notre IA analyse les matchs du jour. Les pronostics seront disponibles très bientôt.</div>
+              <div style="margin-top:16px;display:flex;flex-direction:column;gap:10px;">
+                <div style="height:14px;background:var(--surface-container-high);border-radius:8px;width:80%;margin:0 auto;animation:pulse-badge 1.5s infinite;"></div>
+                <div style="height:14px;background:var(--surface-container);border-radius:8px;width:60%;margin:0 auto;animation:pulse-badge 1.5s infinite;"></div>
+              </div>
+            </div>`
+        }</div>
 
         <!-- EXCLUSIVITÉS RÉSERVÉES -->
         <div class="section-header mb-4" style="margin-top:12px;">
@@ -897,12 +1136,13 @@ const Views = {
             <div style="font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.15em;color:var(--secondary);margin-bottom:6px;">⚡ Offre Flash</div>
             <h4 style="font-weight:900;font-size:1.05rem;margin-bottom:6px;letter-spacing:-0.02em;">Prono Caché Bonus</h4>
             <p style="font-size:0.8rem;color:var(--on-surface-variant);line-height:1.5;">Un pronostic exclusif analysé par notre IA — cote @2.10 — non accessible aux membres gratuits.</p>
+            ${C.flashOfferTimer()}
           </div>
           <div style="width:100%;background:rgba(0,0,0,0.06);border-radius:var(--radius-lg);padding:12px;">
             <div style="font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--outline);margin-bottom:4px;">Accès unique</div>
             <div style="font-size:1.6rem;font-weight:900;color:var(--on-surface);letter-spacing:-0.04em;">1 000 <span style="font-size:1rem;font-weight:700;">FCFA</span></div>
           </div>
-          <button class="btn-secondary" style="width:100%;justify-content:center;" onclick="window.open('https://VOTRE-LIEN-BONUS-PRONO.com','_blank')">
+          <button class="btn-secondary" style="width:100%;justify-content:center;" onclick="window.open('${buildWaLink('bonus')}','_blank')">
             <span class="material-symbols-outlined icon-sm icon-filled">lock_open</span>
             DÉBLOQUER CE PRONO — 1 000 FCFA
           </button>
@@ -913,7 +1153,10 @@ const Views = {
         <div class="section-header mb-4">
           <h2 class="section-title">Autres Pronos Gratuits</h2>
         </div>
-        ${DATA.pronos_gratuits.map(p => C.matchCard(p)).join('')}
+        ${DATA.pronos_gratuits.length > 0
+          ? DATA.pronos_gratuits.map(p => C.matchCard(p)).join('')
+          : `<div style="padding:20px;text-align:center;color:var(--on-surface-variant);font-size:0.85rem;">Aucun prono gratuit pour le moment.</div>`
+        }
 
         <!-- VIP locked pronos -->
         <div class="section-header mb-4" style="margin-top:8px;">
@@ -921,7 +1164,16 @@ const Views = {
           <span class="badge badge-gold">👑 VIP</span>
         </div>
         <div id="vip-pronos-list">
-          ${DATA.pronos_vip.map(p => C.matchCardLocked(p)).join('')}
+          ${DATA.pronos_vip.length > 0
+            ? DATA.pronos_vip.map(p => C.matchCardLocked(p)).join('')
+            : `<div style="position:relative;min-height:130px;background:var(--surface-container-highest);border-radius:var(--radius-xl);overflow:hidden;">
+                <div style="position:absolute;inset:0;padding:14px;display:flex;flex-direction:column;justify-content:center;align-items:center;filter:blur(3px);pointer-events:none;">
+                  <div style="background:rgba(255,255,255,0.2);width:70%;height:14px;border-radius:8px;margin-bottom:10px;"></div>
+                  <div style="background:rgba(255,255,255,0.15);width:50%;height:10px;border-radius:6px;"></div>
+                </div>
+                ${C.glassLock('Pronos VIP')}
+              </div>`
+          }
         </div>
 
         <!-- Gain potentiel sticky card -->
@@ -987,6 +1239,10 @@ const Views = {
 
   /* ---- JOURNAL ---- */
   journal() {
+    const daily = getDailyAnalyses();
+    const freeArticle = daily.free;
+    const vipArticles = daily.vip;
+
     return `
       <div class="view px-4 py-4">
         <!-- Header -->
@@ -1003,28 +1259,16 @@ const Views = {
 
         <!-- Main Feature Article (Free) -->
         <div class="article-card mb-6">
-          <div style="height:200px;background:linear-gradient(135deg,#0f3323,#006c49);display:flex;align-items:flex-end;padding:20px;position:relative;overflow:hidden;">
-            <div style="position:absolute;top:0;right:0;width:160px;height:160px;background:rgba(16,185,129,0.1);border-radius:50%;filter:blur(40px);"></div>
+          <div style="height:200px;background:${freeArticle.bgGradient || 'linear-gradient(135deg,#0f3323,#006c49)'};display:flex;align-items:flex-end;padding:20px;position:relative;overflow:hidden;">
+            <div style="position:absolute;top:0;right:0;width:160px;height:160px;background:rgba(255,255,255,0.1);border-radius:50%;filter:blur(40px);"></div>
             <div style="position:relative;z-index:1;">
-              <span class="badge" style="background:var(--secondary-container);color:var(--on-secondary-container);margin-bottom:8px;">Analyse Profonde</span>
-              <h2 style="font-size:1.2rem;font-weight:900;color:white;letter-spacing:-0.04em;line-height:1.3;">Pourquoi la Champions League est piégeuse ce soir</h2>
+              <span class="badge" style="background:rgba(0,0,0,0.3);color:white;margin-bottom:8px;backdrop-filter:blur(5px);border:1px solid rgba(255,255,255,0.1);">${freeArticle.emoji} ${freeArticle.kicker}</span>
+              <h2 style="font-size:1.2rem;font-weight:900;color:white;letter-spacing:-0.04em;line-height:1.3;">${freeArticle.titre}</h2>
             </div>
           </div>
           <div class="article-body">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-              <div style="width:28px;height:28px;border-radius:50%;background:var(--gradient-primary);display:flex;align-items:center;justify-content:center;font-size:0.8rem;color:white;font-weight:800;">J</div>
-              <span style="font-size:0.78rem;font-weight:600;color:var(--on-surface-variant);">Jean-Marc Expert · Il y a 2h</span>
-            </div>
-            <p class="article-excerpt">Les data-modèles signalent une instabilité inhabituelle sur les marchés de l'Over 2.5 en Champions League ce soir. Le volume de mises sur le Real Madrid est anormalement élevé — signe d'information privée ou de mouvement de foule ? Décryptage.</p>
-            <button class="btn-ghost" style="margin-top:14px;">Lire l'analyse complète →</button>
-          </div>
-        </div>
-
-        <!-- Tendances à Chaud -->
-        <div style="background:var(--surface-container-low);border-radius:var(--radius-xl);padding:18px;margin-bottom:24px;">
-          <h3 style="font-weight:900;font-size:1rem;margin-bottom:16px;letter-spacing:-0.02em;">🔥 Tendances à Chaud</h3>
-          <div style="display:flex;flex-direction:column;gap:14px;">
-            ${DATA.tendances.map(t => `
+              <div style="width:28px;heig            ${DATA.tendances.map(t => `
               <div style="display:flex;align-items:flex-start;gap:12px;">
                 <span style="font-size:1.2rem;font-weight:900;color:var(--primary);opacity:0.2;min-width:24px;">${t.rang}</span>
                 <div>
@@ -1036,15 +1280,16 @@ const Views = {
           </div>
         </div>
 
-        <!-- Expert Articles Feed -->
+        <!-- Expert Articles Feed (VIP) -->
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
           <h2 style="font-size:1.2rem;font-weight:900;letter-spacing:-0.03em;">Flux de l'Expert</h2>
+          <span class="badge badge-gold">VIP</span>
           <div style="flex:1;height:2px;background:var(--surface-container-high);"></div>
         </div>
 
-        ${DATA.journal_articles.map(a => {
-      if (!a.locked) {
-        return `
+        ${vipArticles.map(a => {
+          if (STATE.isVip) {
+            return `
               <div class="card-elevated mb-6" style="padding:20px;">
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
                   <span style="font-size:0.65rem;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:var(--primary);">${a.kicker}</span>
@@ -1053,10 +1298,10 @@ const Views = {
                 </div>
                 <h3 style="font-size:1.05rem;font-weight:900;letter-spacing:-0.03em;line-height:1.35;margin-bottom:8px;">${a.emoji} ${a.titre}</h3>
                 <p style="font-size:0.8rem;color:var(--on-surface-variant);font-weight:500;line-height:1.6;margin-bottom:14px;">${a.extrait}</p>
-                <button class="btn-ghost">Voir le rapport complet →</button>
+                <button class="btn-ghost" onclick="UI.showToast('Rapport complet VIP bientôt disponible')">Voir le rapport complet →</button>
               </div>`;
-      } else {
-        return `
+          } else {
+            return `
               <div class="card-elevated mb-6" style="overflow:hidden;">
                 <div style="padding:20px;">
                   <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
@@ -1065,7 +1310,7 @@ const Views = {
                     <span style="font-size:0.72rem;color:var(--on-surface-variant);">${a.temps}</span>
                   </div>
                   <h3 style="font-size:1.05rem;font-weight:900;letter-spacing:-0.03em;line-height:1.35;margin-bottom:8px;">${a.emoji} ${a.titre}</h3>
-                  <p style="font-size:0.8rem;color:var(--on-surface-variant);font-weight:500;line-height:1.6;">${a.extrait.substring(0, 100)}...</p>
+                  <p style="font-size:0.8rem;color:var(--on-surface-variant);font-weight:500;line-height:1.6;">${a.extrait.substring(0, 80)}...</p>
                 </div>
                 <div style="position:relative;height:80px;">
                   <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:10px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);background:rgba(225,227,228,0.7);">
@@ -1163,12 +1408,12 @@ const Views = {
           <p style="font-size:0.72rem;color:var(--outline);margin-top:8px;">Résiliation possible à tout moment · Paiement sécurisé</p>
         </div>
 
-        <!-- Testimonials -->
+        <!-- Testimonials Carousel -->
         <div class="section-header mb-4">
           <h2 class="section-title">Ils ont rejoint l'Élite</h2>
         </div>
-        <div class="space-y-4 mb-6">
-          ${DATA.temoignages.map(t => C.testimonial(t)).join('')}
+        <div class="mb-6">
+          ${C.testimonialCarousel(DATA.temoignages)}
         </div>
 
         <!-- FAQ -->
@@ -1410,6 +1655,208 @@ const UI = {
 };
 
 /* ============================================================
+   ENHANCEMENTS — Wow Factor Engine
+   ============================================================ */
+const Enhancements = {
+
+  /* ---- A. Last Updated Timestamp ---- */
+  timeAgo(date) {
+    if (!date) return '';
+    const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
+    if (seconds < 60) return 'à l\'instant';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `il y a ${minutes}min`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `il y a ${hours}h`;
+    return `il y a ${Math.floor(hours / 24)}j`;
+  },
+
+  /* ---- A. Countdown Badge for Match Cards ---- */
+  buildCountdownBadge(kickoff) {
+    if (!kickoff) return '';
+    // Parse kickoff time (could be 'HH:MM' or ISO string)
+    let kickoffDate;
+    if (typeof kickoff === 'string' && kickoff.match(/^\d{2}:\d{2}$/)) {
+      const [h, m] = kickoff.split(':').map(Number);
+      kickoffDate = new Date();
+      kickoffDate.setHours(h, m, 0, 0);
+    } else {
+      kickoffDate = new Date(kickoff);
+    }
+    if (isNaN(kickoffDate.getTime())) return '';
+    const diffMs = kickoffDate.getTime() - Date.now();
+    if (diffMs <= 0) return ''; // Match already started
+    const diffMin = Math.floor(diffMs / 60000);
+    const hours = Math.floor(diffMin / 60);
+    const mins = diffMin % 60;
+    const urgent = diffMin <= 30;
+    const label = hours > 0 ? `${hours}h ${mins}min` : `${mins}min`;
+    return `<span class="countdown-badge ${urgent ? 'urgent' : ''}">
+      <span class="material-symbols-outlined">timer</span> Dans ${label}
+    </span>`;
+  },
+
+  /* ---- A. Live Status Badge ---- */
+  getLiveStatus(prono) {
+    if (prono.status === 'LIVE' || prono.status === 'IN_PLAY') return 'EN DIRECT';
+    if (prono.status === 'HT') return 'MI-TEMPS';
+    return null;
+  },
+
+  /* ---- B. Confetti Celebration ---- */
+  fireConfetti() {
+    const container = document.getElementById('confetti-container');
+    if (!container) return;
+    container.innerHTML = '';
+    const colors = ['#006c49', '#10b981', '#fea619', '#ff7a73', '#4edea3', '#ffddb8'];
+    for (let i = 0; i < 80; i++) {
+      const piece = document.createElement('div');
+      piece.className = 'confetti-piece';
+      piece.style.left = `${Math.random() * 100}%`;
+      piece.style.background = colors[Math.floor(Math.random() * colors.length)];
+      piece.style.width = `${6 + Math.random() * 8}px`;
+      piece.style.height = `${6 + Math.random() * 8}px`;
+      piece.style.animationDelay = `${Math.random() * 0.8}s`;
+      piece.style.animationDuration = `${1.8 + Math.random() * 1.5}s`;
+      container.appendChild(piece);
+    }
+    setTimeout(() => { container.innerHTML = ''; }, 4000);
+  },
+
+  /* ---- B. Swipe-to-Dismiss ---- */
+  initSwipeDismiss() {
+    document.querySelectorAll('.swipe-dismiss').forEach(el => {
+      let startX = 0, currentX = 0, isDragging = false;
+
+      el.addEventListener('touchstart', (e) => {
+        startX = e.touches[0].clientX;
+        isDragging = true;
+        el.classList.add('swiping');
+      }, { passive: true });
+
+      el.addEventListener('touchmove', (e) => {
+        if (!isDragging) return;
+        currentX = e.touches[0].clientX - startX;
+        if (currentX > 0) { // Only swipe right
+          el.style.transform = `translateX(${currentX}px)`;
+          el.style.opacity = `${Math.max(0.2, 1 - currentX / 300)}`;
+        }
+      }, { passive: true });
+
+      el.addEventListener('touchend', () => {
+        isDragging = false;
+        el.classList.remove('swiping');
+        if (currentX > 120) {
+          el.classList.add('dismissed');
+          setTimeout(() => { el.style.display = 'none'; }, 400);
+        } else {
+          el.style.transform = '';
+          el.style.opacity = '';
+        }
+        currentX = 0;
+      }, { passive: true });
+    });
+  },
+
+  /* ---- C. Social Proof Gain Popup ---- */
+  startGainPopups() {
+    const feedData = DATA.live_feed;
+    if (!feedData || feedData.length === 0) return;
+    let index = 0;
+
+    const showNext = () => {
+      const item = feedData[index % feedData.length];
+      const popup = document.getElementById('gain-popup');
+      if (!popup) return;
+
+      const avatarEl = document.getElementById('gain-avatar');
+      const nameEl = document.getElementById('gain-name');
+      const amountEl = document.getElementById('gain-amount');
+      const actionEl = document.getElementById('gain-action');
+
+      if (avatarEl) avatarEl.textContent = item.nom.charAt(0);
+      if (nameEl) nameEl.textContent = `${item.nom} · ${item.ville}`;
+      if (amountEl) amountEl.textContent = item.gain;
+      if (actionEl) actionEl.textContent = item.action;
+
+      popup.classList.add('show');
+      setTimeout(() => popup.classList.remove('show'), 4500);
+      index++;
+    };
+
+    // First popup after 15s, then every 25-40s (randomized)
+    setTimeout(() => {
+      showNext();
+      STATE._gainPopupTimer = setInterval(showNext, 25000 + Math.random() * 15000);
+    }, 15000);
+  },
+
+  /* ---- C. Flash Offer Timer ---- */
+  startFlashTimer() {
+    // Set flash expiry: 3h45m from page load (or midnight, whichever comes first)
+    const now = new Date();
+    let expiry = new Date(now.getTime() + 3 * 3600000 + 45 * 60000);
+    const midnight = new Date(now);
+    midnight.setHours(23, 59, 59, 999);
+    if (expiry > midnight) expiry = midnight;
+
+    const update = () => {
+      const diff = Math.max(0, expiry.getTime() - Date.now());
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+
+      const hEl = document.getElementById('flash-hours');
+      const mEl = document.getElementById('flash-minutes');
+      const sEl = document.getElementById('flash-seconds');
+      if (hEl) hEl.textContent = String(h).padStart(2, '0');
+      if (mEl) mEl.textContent = String(m).padStart(2, '0');
+      if (sEl) sEl.textContent = String(s).padStart(2, '0');
+
+      if (diff <= 0) clearInterval(STATE._flashTimerInterval);
+    };
+
+    update();
+    STATE._flashTimerInterval = setInterval(update, 1000);
+  },
+
+  /* ---- C. Testimonial Carousel Dots ---- */
+  initCarouselDots() {
+    const carousel = document.getElementById('testimonial-carousel');
+    const dotsContainer = document.getElementById('carousel-dots');
+    if (!carousel || !dotsContainer) return;
+
+    const dots = dotsContainer.querySelectorAll('.carousel-dot');
+    carousel.addEventListener('scroll', () => {
+      const scrollLeft = carousel.scrollLeft;
+      const cardWidth = carousel.querySelector('.testimonial-card')?.offsetWidth || 300;
+      const activeIdx = Math.round(scrollLeft / (cardWidth + 14)); // 14 = gap
+      dots.forEach((dot, i) => dot.classList.toggle('active', i === activeIdx));
+    }, { passive: true });
+  },
+
+  /* ---- B. History Confetti trigger ---- */
+  checkHistoryConfetti() {
+    // Trigger confetti once if the latest history item was won
+    const latest = DATA.historique[0];
+    if (!latest || !latest.gagne) return;
+    const key = `goliat_confetti_${latest.match}_${latest.date}`;
+    if (localStorage.getItem(key)) return; // Already celebrated
+    localStorage.setItem(key, '1');
+    setTimeout(() => this.fireConfetti(), 1500);
+  },
+
+  /* ---- Boot all enhancements ---- */
+  init() {
+    this.initSwipeDismiss();
+    this.startGainPopups();
+    this.initCarouselDots();
+    this.startFlashTimer();
+    this.checkHistoryConfetti();
+  }
+};
+
+/* ============================================================
    PWA — Install prompt + Push notifications
    ============================================================ */
 const PWA = {
@@ -1461,15 +1908,24 @@ const PWA = {
   },
 
   showInstallBanner() {
+    if (localStorage.getItem('goliat_install_dismissed') === 'true') return;
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    if (isStandalone) return;
+
     const banner = document.getElementById('install-banner');
-    if (banner && PWA.deferredPrompt) {
-      banner.classList.add('show');
+    if (banner && (PWA.deferredPrompt || PWA.isIOS())) {
+      banner.style.display = 'flex';
+      setTimeout(() => banner.classList.add('show'), 10);
     }
   },
 
   hideInstallBanner() {
     const banner = document.getElementById('install-banner');
-    if (banner) banner.classList.remove('show');
+    if (banner) {
+      banner.classList.remove('show');
+      setTimeout(() => banner.style.display = 'none', 400);
+    }
+    localStorage.setItem('goliat_install_dismissed', 'true');
     // iOS: show manual instructions
     if (PWA.isIOS()) {
       UI.showToast('📱 iOS : Appuyez sur Partager → "Sur l\'écran d\'accueil"', 5000);
@@ -1504,22 +1960,48 @@ const PWA = {
     }
   },
 
-  // Simulate a "Late Value" local notification
+  // Simulate a "Late Value" local notification using real prono data when available
   scheduleLocalAlert() {
-    const alerts = [
-      { titre: 'Cote VIP en explosion — @5.80', sub: 'Inter vs Juventus · Score exact · 47min restantes' },
-      { titre: 'Alerte Dernière Minute !', sub: 'Real Madrid @1.85 → cote qui chute dans 30min' },
-      { titre: '🔥 La Montante VIP — Jour 3', sub: 'Mise recommandée : 24 500 FCFA sur Marseille' }
-    ];
-    const alert = alerts[Math.floor(Math.random() * alerts.length)];
+    // Build dynamic alerts from real data if available
+    const dynamicAlerts = [];
+    const firstProno = DATA.pronos_gratuits[0];
+    const firstVip = DATA.pronos_vip[0];
+
+    if (firstProno) {
+      dynamicAlerts.push({
+        titre: `Cote en hausse — @${firstProno.cote}`,
+        sub: `${firstProno.match} · ${firstProno.categorie} · ${firstProno.heure}`
+      });
+    }
+    if (firstVip) {
+      dynamicAlerts.push({
+        titre: `🔥 Alerte VIP — @${firstVip.cote || '?.??'}`,
+        sub: `${firstVip.match} · ${firstVip.categorie} · Expiration bientôt`
+      });
+    }
+
+    // Generic fallbacks if no data yet
+    if (dynamicAlerts.length === 0) {
+      dynamicAlerts.push(
+        { titre: '🔥 Cote VIP en explosion !', sub: 'Un prono VIP vient d\'être publié — Agissez maintenant' },
+        { titre: 'Alerte Dernière Minute !', sub: 'Cotes en mouvement — Ne ratez pas cette opportunité' },
+        { titre: '🔥 La Montante VIP — En cours', sub: 'Les gains s\'accumulent — Rejoignez l\'élite' }
+      );
+    }
+
+    const alert = dynamicAlerts[Math.floor(Math.random() * dynamicAlerts.length)];
 
     setTimeout(() => {
       const banner = document.getElementById('late-value-alert');
-      if (banner) {
+      if (banner && localStorage.getItem('goliat_alert_dismissed') !== 'true') {
+        banner.style.display = 'flex';
         banner.querySelector('.alert-title').textContent = alert.titre;
         banner.querySelector('.alert-sub').textContent = alert.sub;
         banner.classList.add('show');
-        setTimeout(() => banner.classList.remove('show'), 8000);
+        setTimeout(() => {
+          banner.classList.remove('show');
+          setTimeout(() => banner.style.display = 'none', 400);
+        }, 8000);
       }
     }, 6000);
   }
@@ -1558,14 +2040,23 @@ function bindEvents() {
   // Late value alert close
   const alertClose = document.getElementById('alert-close-btn');
   if (alertClose) alertClose.addEventListener('click', () => {
-    document.getElementById('late-value-alert')?.classList.remove('show');
+    const banner = document.getElementById('late-value-alert');
+    if (banner) {
+      banner.classList.remove('show');
+      setTimeout(() => banner.style.display = 'none', 400);
+    }
+    localStorage.setItem('goliat_alert_dismissed', 'true');
   });
 
   // Alert CTA
   const alertCta = document.getElementById('alert-cta-btn');
   if (alertCta) alertCta.addEventListener('click', (e) => {
     e.preventDefault();
-    document.getElementById('late-value-alert')?.classList.remove('show');
+    const banner = document.getElementById('late-value-alert');
+    if (banner) {
+      banner.classList.remove('show');
+      setTimeout(() => banner.style.display = 'none', 400);
+    }
     Modal.open();
   });
 
@@ -1638,7 +2129,10 @@ function init() {
   // 7. Schedule Late Value alert
   PWA.scheduleLocalAlert();
 
-  // 8. Firebase + API init (async, non-blocking)
+  // 8. Init Enhancements (swipe, social proof, carousel, flash timer)
+  setTimeout(() => Enhancements.init(), 2000);
+
+  // 9. Firebase + API init (async, non-blocking)
   // Runs after initial render so UI is responsive immediately
   setTimeout(async () => {
     try {
@@ -1653,57 +2147,43 @@ function init() {
       const todayData = await API.loadTodayPronos();
 
       if (todayData?.free?.length > 0) {
-        // Update free pronos data
-        DATA.pronos_gratuits = todayData.free.map(p => ({
-          id: p.fixture_id || p.id,
-          competition: p.competition,
-          match: p.match,
-          equipe1: '⚽', equipe2: '🏆',
-          prono: p.prono,
-          cote: p.cote,
-          heure: p.heure,
-          fiabilite: p.fiabilite,
-          categorie: p.categorie,
-          description: p.description
-        }));
+        DATA.pronos_gratuits = todayData.free.map(p => mapPronoForUi(p));
       }
 
       if (todayData?.vip_preview?.length > 0) {
-        // Update VIP locked pronos
-        DATA.pronos_vip = todayData.vip_preview.map(p => ({
-          id: p.fixture_id || p.id,
-          competition: p.competition,
-          match: p.match,
-          equipe1: '⚽', equipe2: '🏆',
-          prono: p.prono || '???',
-          cote: p.cote || '?.??',
-          heure: p.heure,
-          categorie: p.categorie || 'VIP',
-          locked: p.locked !== false
-        }));
+        DATA.pronos_vip = todayData.vip_preview.map(p =>
+          mapPronoForUi(p, {
+            locked: p.locked !== false,
+            hideDetails: p.locked !== false
+          })
+        );
       }
 
-      // Show how many pronos are available
-      if (todayData?.meta) {
-        const count = todayData.meta.total;
-        if (count > 0) {
-          console.info(`[GOLIAT] ${count} pronos chargés depuis le serveur ✅`);
-        }
+      // Track last data refresh
+      STATE.lastDataRefresh = new Date();
+
+      if (todayData?.meta?.total > 0) {
+        console.info(`[GOLIAT] ${todayData.meta.total} pronos chargés depuis le serveur ✅`);
       }
 
       // Refresh current view if it displays pronos
       const currentView = STATE.currentView;
-      if (['accueil', 'pronos'].includes(currentView)) {
+      if (['accueil', 'pronos', 'vip'].includes(currentView)) {
         App.render(currentView);
+        // Re-init carousel dots after re-render
+        setTimeout(() => Enhancements.initCarouselDots(), 100);
       }
 
     } catch (err) {
-      console.warn('[Init] API non disponible — données statiques utilisées:', err.message);
+      console.warn('[Init] API non disponible — aucune donnée fictive ne sera affichée:', err.message);
     }
   }, 800);
 
+  setTimeout(() => {
+    refreshLiveData();
+  }, 1400);
 
-  // 9. Ask for notification permission after 30s (non-intrusive)
+  // 10. Ask for notification permission after 30s (non-intrusive)
   setTimeout(() => {
     if (STATE.streak >= 3) {
       PWA.requestNotifications();
@@ -1735,3 +2215,5 @@ if (document.readyState === 'loading') {
 } else {
   init();
 }
+
+/* (shareTicket already defined in UI object above — no duplicate needed) */

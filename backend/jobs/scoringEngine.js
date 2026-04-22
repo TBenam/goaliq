@@ -1,115 +1,528 @@
-﻿/* ====================================================
-   GOLIAT — Scoring Engine
-   Algorithme de scoring 0-100 basé sur les stats
-   Input: row de la collection Firestore 'matches'
-   Output: { home_win_score, over25_prob, signals, recommendation }
+/* ====================================================
+   GOLIAT — Scoring Engine v3
+   Architecture Poisson + Multi-Signal + Quality Gate
+
+   Chaque match est évalué sur 7 dimensions indépendantes.
+   Un prono n'est publié QUE s'il franchit le seuil de qualité.
    ==================================================== */
 
+// ── Poisson Distribution ─────────────────────────────
+// P(X = k) = (λ^k * e^(-λ)) / k!
+function poissonPmf(lambda, k) {
+  if (lambda <= 0) return k === 0 ? 1 : 0;
+  let result = Math.exp(-lambda);
+  for (let i = 1; i <= k; i++) {
+    result *= lambda / i;
+  }
+  return result;
+}
+
 /**
- * Parse a form string like "WWLWD" → weighted score 0-100
- * More recent results have higher weight
+ * Build a full score matrix from two lambda values (xG).
+ * Returns probabilities for home win, draw, away win,
+ * over/under, BTTS, and exact score predictions.
  */
+function buildScoreMatrix(homeLambda, awayLambda, maxGoals = 6) {
+  const matrix = [];
+  let homeWin = 0, draw = 0, awayWin = 0;
+  let over15 = 0, over25 = 0, over35 = 0;
+  let bttsYes = 0;
+  const exactScores = [];
+
+  for (let h = 0; h <= maxGoals; h++) {
+    matrix[h] = [];
+    const pH = poissonPmf(homeLambda, h);
+    for (let a = 0; a <= maxGoals; a++) {
+      const pA = poissonPmf(awayLambda, a);
+      const p = pH * pA;
+      matrix[h][a] = p;
+
+      if (h > a) homeWin += p;
+      else if (h === a) draw += p;
+      else awayWin += p;
+
+      if (h + a > 1.5) over15 += p;
+      if (h + a > 2.5) over25 += p;
+      if (h + a > 3.5) over35 += p;
+      if (h > 0 && a > 0) bttsYes += p;
+
+      exactScores.push({ home: h, away: a, prob: p });
+    }
+  }
+
+  exactScores.sort((a, b) => b.prob - a.prob);
+
+  return {
+    matrix,
+    homeWinProb: Math.round(homeWin * 100),
+    drawProb: Math.round(draw * 100),
+    awayWinProb: Math.round(awayWin * 100),
+    over15Prob: Math.round(over15 * 100),
+    over25Prob: Math.round(over25 * 100),
+    over35Prob: Math.round(over35 * 100),
+    bttsProb: Math.round(bttsYes * 100),
+    topScores: exactScores.slice(0, 5).map(s => ({
+      score: `${s.home}-${s.away}`,
+      prob: Math.round(s.prob * 1000) / 10  // one decimal %
+    }))
+  };
+}
+
+// ── Form Parser ──────────────────────────────────────
+// Parse "WWLDW" → weighted score 0-100 (recent = heavier)
 function parseForm(form = '') {
-  if (!form) return 50;
-  const chars = form.replace(/[^WDL]/gi, '').split('').slice(-5);
-  if (!chars.length) return 50;
+  if (!form || typeof form !== 'string') return null;
+  const chars = form.replace(/[^WDL]/gi, '').toUpperCase().split('').slice(-5);
+  if (chars.length < 3) return null; // Need at least 3 results
 
-  const total = chars.reduce((acc, r, i) => {
-    const weight = (i + 1) / chars.length; // last result = full weight
-    const points = r.toUpperCase() === 'W' ? 3 : r.toUpperCase() === 'D' ? 1 : 0;
-    return acc + points * weight;
-  }, 0);
+  const weights = [1, 1.5, 2, 2.5, 3]; // Most recent = weight 3
+  const startIdx = 5 - chars.length;
+  let total = 0, maxTotal = 0;
 
-  // Normalize to 0-100
-  const maxPossible = chars.reduce((acc, _, i) => acc + 3 * ((i + 1) / chars.length), 0);
-  return Math.round((total / maxPossible) * 100);
+  chars.forEach((r, i) => {
+    const w = weights[startIdx + i];
+    total += (r === 'W' ? 3 : r === 'D' ? 1 : 0) * w;
+    maxTotal += 3 * w;
+  });
+
+  return Math.round((total / maxTotal) * 100);
+}
+
+// ── Calculate xG from attack and defense stats ───────
+function calcXg(attackAvg, defenseAvg, isHome = false) {
+  // xG = average of (team's attacking power + opponent's defensive weakness)
+  // Home advantage adds ~0.25 goals (well-established in football analytics)
+  const base = (parseFloat(attackAvg || 1.1) + parseFloat(defenseAvg || 1.2)) / 2;
+  return isHome ? base + 0.25 : base;
+}
+
+// ── Evaluate edge: how much do markets deviate? ──────
+function evaluateValueEdge(ourProb, impliedProb) {
+  if (!ourProb || !impliedProb || impliedProb <= 0) return 0;
+  return ((ourProb - impliedProb) / impliedProb) * 100;
 }
 
 /**
- * Estimate Over 2.5 probability based on team attack/defense averages
- */
-function calcOver25Prob(homeAttack, awayAttack, homeDefense, awayDefense) {
-  const homeExpected = (parseFloat(homeAttack) + parseFloat(awayDefense)) / 2;
-  const awayExpected = (parseFloat(awayAttack) + parseFloat(homeDefense)) / 2;
-  const totalExpected = homeExpected + awayExpected;
-
-  if (totalExpected >= 3.5) return Math.min(92, 70 + (totalExpected - 3.5) * 10);
-  if (totalExpected >= 2.5) return Math.min(70, 50 + (totalExpected - 2.5) * 18);
-  return Math.max(20, 30 + totalExpected * 5);
-}
-
-/**
- * Main scoring function
- * @param {object} match - Firestore match document
- * @returns {ScoringResult}
+ * ══════════════════════════════════════════════════════
+ * MAIN SCORING FUNCTION v3
+ * ══════════════════════════════════════════════════════
+ *
+ * Input:  match object from collectMatches.js (enriched)
+ * Output: comprehensive scoring with quality gate
  */
 export function scoreMatch(match) {
-  let score = 50; // Neutral baseline
   const signals = [];
   const warnings = [];
 
-  // ── 1. Form Analysis ──────────────────────────────
-  const homeFormScore = parseForm(match.home_form);
-  const awayFormScore = parseForm(match.away_form);
-  const formDelta = homeFormScore - awayFormScore;
-
-  score += formDelta * 0.3;
-
-  if (homeFormScore >= 70) signals.push('Domicile en grande forme');
-  if (awayFormScore >= 70) warnings.push('Extérieur en grande forme');
-  if (homeFormScore <= 30) warnings.push('Domicile en mauvaise passe');
-  if (awayFormScore <= 30) signals.push('Extérieur en crise de forme');
-
-  // ── 2. Home Advantage (standard +8% baseline) ─────
-  score += 8;
-
-  // ── 3. Attack vs Defense Analysis ─────────────────
-  const homeAtt = parseFloat(match.home_goals_avg || 1.2);
+  // ── 1. Calculate xG using Poisson inputs ──────────
+  const homeAtt = parseFloat(match.home_goals_avg || 1.1);
   const awayAtt = parseFloat(match.away_goals_avg || 1.0);
   const homeDef = parseFloat(match.home_goals_conceded || 1.2);
   const awayDef = parseFloat(match.away_goals_conceded || 1.2);
 
-  const homeExpectedGoals = (homeAtt + awayDef) / 2;
-  const awayExpectedGoals = (awayAtt + homeDef) / 2;
+  const homeXg = calcXg(homeAtt, awayDef, true);   // Home attacks vs Away defense
+  const awayXg = calcXg(awayAtt, homeDef, false);   // Away attacks vs Home defense
 
-  if (homeExpectedGoals > 2.0) { score += 12; signals.push('Attaque domicile très prolifique'); }
-  else if (homeExpectedGoals > 1.5) { score += 6; signals.push('Attaque domicile solide'); }
+  // ── 2. Poisson Score Matrix ───────────────────────
+  const poisson = buildScoreMatrix(homeXg, awayXg);
 
-  if (awayExpectedGoals > 1.8) { score -= 8; warnings.push('Attaque extérieur dangereuse'); }
-  if (homeDef < 0.9) { score += 8; signals.push('Défense domicile imperméable'); }
-  if (awayDef < 0.9) { score -= 6; warnings.push("Défense extérieur costaud"); }
+  // ── 3. Form Analysis ──────────────────────────────
+  const homeFormScore = parseForm(match.home_form);
+  const awayFormScore = parseForm(match.away_form);
+  const formAvailable = homeFormScore !== null && awayFormScore !== null;
 
-  // ── 4. Over 2.5 Probability ───────────────────────
-  const over25Prob = calcOver25Prob(homeAtt, awayAtt, homeDef, awayDef);
-  const totalExpected = homeExpectedGoals + awayExpectedGoals;
+  let formDelta = 0;
+  if (formAvailable) {
+    formDelta = homeFormScore - awayFormScore;
+    if (homeFormScore >= 75) signals.push(`Domicile en grande forme (${homeFormScore}%)`);
+    if (awayFormScore >= 75) signals.push(`Extérieur en grande forme (${awayFormScore}%)`);
+    if (homeFormScore <= 25) warnings.push(`Domicile en crise (${homeFormScore}%)`);
+    if (awayFormScore <= 25) warnings.push(`Extérieur en crise (${awayFormScore}%)`);
+  } else {
+    warnings.push('Forme récente non disponible — confiance réduite');
+  }
 
-  if (over25Prob >= 70) signals.push(`Over 2.5 probable (${Math.round(over25Prob)}%)`);
-  if (totalExpected < 1.8) signals.push('Match fermé, Under 2.5 favori');
+  // ── 4. API-Football Predictions (if available) ────
+  const apiPred = match.api_predictions || null;
+  let apiHomeProb = null, apiDrawProb = null, apiAwayProb = null;
+  let apiAdvice = null;
 
-  // ── 5. BTTS signal ────────────────────────────────
-  const bttsProbEstimate = Math.min(90, (homeAtt * 25) + (awayAtt * 20) - (homeDef * 10));
-  if (bttsProbEstimate >= 65) signals.push('BTTS probable');
+  if (apiPred) {
+    apiHomeProb = parseFloat(apiPred.percent?.home) || null;
+    apiDrawProb = parseFloat(apiPred.percent?.draw) || null;
+    apiAwayProb = parseFloat(apiPred.percent?.away) || null;
+    apiAdvice = apiPred.advice || null;
+    if (apiAdvice) signals.push(`API-Football: "${apiAdvice}"`);
+  }
 
-  // ── 6. Normalize score ────────────────────────────
-  const finalScore = Math.min(95, Math.max(10, Math.round(score)));
+  // ── 4b. Injuries & Suspensions (Absences) ─────────
+  const injuries = match.injuries || [];
+  let homeInjuries = 0, awayInjuries = 0;
+  if (injuries.length > 0) {
+    injuries.forEach(inj => {
+      if (inj.team_id === match.home_team_id) homeInjuries++;
+      if (inj.team_id === match.away_team_id) awayInjuries++;
+    });
+    if (homeInjuries >= 3) warnings.push(`Domicile très diminué (${homeInjuries} joueurs absents)`);
+    else if (homeInjuries > 0) warnings.push(`Domicile: ${homeInjuries} absent(s)`);
+    
+    if (awayInjuries >= 3) signals.push(`Extérieur très diminué (${awayInjuries} joueurs absents)`);
+    else if (awayInjuries > 0) signals.push(`Extérieur: ${awayInjuries} absent(s)`);
+  }
 
-  // ── 7. Recommendation ─────────────────────────────
-  let recommendation;
-  if (finalScore >= 68)      recommendation = 'home_win';
-  else if (finalScore <= 32) recommendation = 'away_win';
-  else if (over25Prob >= 65) recommendation = 'over25';
-  else if (bttsProbEstimate >= 65) recommendation = 'btts';
-  else                       recommendation = 'draw_or_low_scoring';
+  // ── 4c. Market Sentiment (Bookmaker Odds) ─────────
+  const realOdds = match.bookmaker_odds || null;
+  if (realOdds && poisson.homeWinProb > 0) {
+    const poissonImpliedHomeOdds = 100 / poisson.homeWinProb;
+    // Si la cote réelle est BEAUCOUP plus basse que notre cote Poisson, c'est du Smart Money
+    if (realOdds.home < poissonImpliedHomeOdds * 0.8) {
+      signals.push(`Smart Money détecté sur Victoire Domicile (Cote réelle @${realOdds.home} vs Poisson @${poissonImpliedHomeOdds.toFixed(2)})`);
+    }
+    const poissonImpliedAwayOdds = 100 / poisson.awayWinProb;
+    if (realOdds.away < poissonImpliedAwayOdds * 0.8) {
+      warnings.push(`Smart Money détecté sur Victoire Extérieur (Cote réelle @${realOdds.away} vs Poisson @${poissonImpliedAwayOdds.toFixed(2)})`);
+    }
+  }
+
+  // ── 4d. Stakes & Standings (Enjeu mathématique) ───
+  const standings = match.standings || [];
+  let homeRank = null, awayRank = null;
+  let homeDesc = null, awayDesc = null;
+
+  if (standings.length > 0) {
+    const homeSt = standings.find(s => s.team_id === match.home_team_id);
+    const awaySt = standings.find(s => s.team_id === match.away_team_id);
+    if (homeSt) { homeRank = homeSt.rank; homeDesc = homeSt.description; }
+    if (awaySt) { awayRank = awaySt.rank; awayDesc = awaySt.description; }
+
+    if (homeDesc && homeDesc.toLowerCase().includes('relegation')) signals.push(`Enjeu critique: Domicile joue le maintien`);
+    else if (homeDesc && (homeDesc.toLowerCase().includes('champion') || homeDesc.toLowerCase().includes('promotion'))) signals.push(`Enjeu majeur: Domicile joue le haut de tableau`);
+
+    if (awayDesc && awayDesc.toLowerCase().includes('relegation')) signals.push(`Enjeu critique: Extérieur joue le maintien`);
+    else if (awayDesc && (awayDesc.toLowerCase().includes('champion') || awayDesc.toLowerCase().includes('promotion'))) signals.push(`Enjeu majeur: Extérieur joue le haut de tableau`);
+  }
+
+  // ── 4e. Fatigue & Rotation Risk ────────────────────
+  const homeNext = match.home_next_match;
+  const awayNext = match.away_next_match;
+  let homeFatiguePenalty = 0;
+  let awayFatiguePenalty = 0;
+
+  if (homeNext && homeNext.days_rest <= 4 && homeNext.days_rest > 0) {
+    const isBigMatch = homeNext.competition.toLowerCase().includes('champion') || homeNext.competition.toLowerCase().includes('europa') || homeNext.competition.toLowerCase().includes('cup');
+    if (isBigMatch) {
+      warnings.push(`Rotation Domicile: Match crucial (${homeNext.competition}) dans ${homeNext.days_rest} jours`);
+      homeFatiguePenalty = 20;
+    } else {
+      warnings.push(`Calendrier chargé Domicile: Prochain match dans ${homeNext.days_rest} jours`);
+      homeFatiguePenalty = 5;
+    }
+  }
+
+  if (awayNext && awayNext.days_rest <= 4 && awayNext.days_rest > 0) {
+    const isBigMatch = awayNext.competition.toLowerCase().includes('champion') || awayNext.competition.toLowerCase().includes('europa') || awayNext.competition.toLowerCase().includes('cup');
+    if (isBigMatch) {
+      warnings.push(`Rotation Extérieur: Match crucial (${awayNext.competition}) dans ${awayNext.days_rest} jours`);
+      awayFatiguePenalty = 20;
+    } else {
+      warnings.push(`Calendrier chargé Extérieur: Prochain match dans ${awayNext.days_rest} jours`);
+      awayFatiguePenalty = 5;
+    }
+  }
+
+  // ── 5. H2H Analysis ──────────────────────────────
+  const h2h = match.h2h || [];
+  let h2hHomeWins = 0, h2hAwayWins = 0, h2hDraws = 0, h2hTotalGoals = 0;
+  if (h2h.length > 0) {
+    h2h.forEach(m => {
+      const hGoals = m.home_goals ?? 0;
+      const aGoals = m.away_goals ?? 0;
+      h2hTotalGoals += hGoals + aGoals;
+      if (hGoals > aGoals) h2hHomeWins++;
+      else if (aGoals > hGoals) h2hAwayWins++;
+      else h2hDraws++;
+    });
+    const h2hAvgGoals = h2hTotalGoals / h2h.length;
+    if (h2hAvgGoals >= 3.0) signals.push(`H2H: ${h2hAvgGoals.toFixed(1)} buts/match en moyenne`);
+    if (h2hHomeWins >= 3) signals.push(`H2H: Domicile domine (${h2hHomeWins}V/${h2h.length})`);
+    if (h2hAwayWins >= 3) signals.push(`H2H: Extérieur domine (${h2hAwayWins}V/${h2h.length})`);
+  }
+
+  // ── 6. Compute Composite Score (0-100) ────────────
+  // Base: Poisson probability mapped to 0-100
+  let compositeScore = poisson.homeWinProb;
+
+  // Adjust with form if available (max ±15 points)
+  if (formAvailable) {
+    compositeScore += Math.max(-15, Math.min(15, formDelta * 0.20));
+  }
+
+  // Adjust with API-Football predictions if available (max ±10 points)
+  if (apiHomeProb !== null) {
+    const apiDelta = apiHomeProb - compositeScore;
+    compositeScore += Math.max(-10, Math.min(10, apiDelta * 0.3));
+  }
+
+  compositeScore = Math.max(5, Math.min(95, Math.round(compositeScore)));
+
+  // ── 7. Market Detection: find the BEST bet ────────
+  const markets = [];
+
+  // 7a. Home Win
+  if (poisson.homeWinProb >= 50) {
+    markets.push({
+      type: 'home_win',
+      label: `Victoire ${match.home_team}`,
+      prob: poisson.homeWinProb,
+      estimatedOdds: Math.round((100 / poisson.homeWinProb) * 100) / 100,
+      strength: poisson.homeWinProb >= 60 ? 'strong' : 'moderate'
+    });
+  }
+
+  // 7b. Away Win
+  if (poisson.awayWinProb >= 45) {
+    markets.push({
+      type: 'away_win',
+      label: `Victoire ${match.away_team}`,
+      prob: poisson.awayWinProb,
+      estimatedOdds: Math.round((100 / poisson.awayWinProb) * 100) / 100,
+      strength: poisson.awayWinProb >= 55 ? 'strong' : 'moderate'
+    });
+  }
+
+  // 7c. Double Chance Home
+  if (poisson.homeWinProb + poisson.drawProb >= 65) {
+    markets.push({
+      type: 'double_chance_1X',
+      label: `${match.home_team} ou Nul`,
+      prob: poisson.homeWinProb + poisson.drawProb,
+      estimatedOdds: Math.round((100 / (poisson.homeWinProb + poisson.drawProb)) * 100) / 100,
+      strength: (poisson.homeWinProb + poisson.drawProb) >= 75 ? 'strong' : 'moderate'
+    });
+  }
+
+  // 7d. Double Chance Away
+  if (poisson.awayWinProb + poisson.drawProb >= 60) {
+    markets.push({
+      type: 'double_chance_X2',
+      label: `Nul ou ${match.away_team}`,
+      prob: poisson.awayWinProb + poisson.drawProb,
+      estimatedOdds: Math.round((100 / (poisson.awayWinProb + poisson.drawProb)) * 100) / 100,
+      strength: (poisson.awayWinProb + poisson.drawProb) >= 70 ? 'strong' : 'moderate'
+    });
+  }
+
+  // 7e. Over 2.5
+  if (poisson.over25Prob >= 55) {
+    markets.push({
+      type: 'over_25',
+      label: 'Plus de 2.5 buts',
+      prob: poisson.over25Prob,
+      estimatedOdds: Math.round((100 / poisson.over25Prob) * 100) / 100,
+      strength: poisson.over25Prob >= 65 ? 'strong' : 'moderate'
+    });
+  }
+
+  // 7f. Under 2.5
+  if ((100 - poisson.over25Prob) >= 60) {
+    markets.push({
+      type: 'under_25',
+      label: 'Moins de 2.5 buts',
+      prob: 100 - poisson.over25Prob,
+      estimatedOdds: Math.round((100 / (100 - poisson.over25Prob)) * 100) / 100,
+      strength: (100 - poisson.over25Prob) >= 70 ? 'strong' : 'moderate'
+    });
+  }
+
+  // 7g. BTTS Yes
+  if (poisson.bttsProb >= 55) {
+    markets.push({
+      type: 'btts_yes',
+      label: 'Les deux équipes marquent',
+      prob: poisson.bttsProb,
+      estimatedOdds: Math.round((100 / poisson.bttsProb) * 100) / 100,
+      strength: poisson.bttsProb >= 65 ? 'strong' : 'moderate'
+    });
+  }
+
+  // 7h. BTTS No
+  if ((100 - poisson.bttsProb) >= 60) {
+    markets.push({
+      type: 'btts_no',
+      label: 'Au moins une équipe ne marque pas',
+      prob: 100 - poisson.bttsProb,
+      estimatedOdds: Math.round((100 / (100 - poisson.bttsProb)) * 100) / 100,
+      strength: (100 - poisson.bttsProb) >= 70 ? 'strong' : 'moderate'
+    });
+  }
+
+  // 7i. Over 1.5
+  if (poisson.over15Prob >= 75) {
+    markets.push({
+      type: 'over_15',
+      label: 'Plus de 1.5 buts',
+      prob: poisson.over15Prob,
+      estimatedOdds: Math.round((100 / poisson.over15Prob) * 100) / 100,
+      strength: poisson.over15Prob >= 85 ? 'strong' : 'moderate'
+    });
+  }
+
+  // Sort by probability descending
+  markets.sort((a, b) => b.prob - a.prob);
+
+  // ── 8. Best Market Selection ──────────────────────
+  // Pick the market with the highest probability that also has reasonable odds (>= 1.30)
+  const bestMarket = markets.find(m => m.estimatedOdds >= 1.30) || markets[0] || null;
+
+  // ── 9. Compute Confidence Level ───────────────────
+  let confidenceScore = 0;
+
+  // 9a. Poisson clarity: big gap between best and 2nd best outcome
+  const outcomes = [poisson.homeWinProb, poisson.drawProb, poisson.awayWinProb].sort((a, b) => b - a);
+  const clarityGap = outcomes[0] - outcomes[1]; // How clear is the favorite?
+  confidenceScore += Math.min(30, clarityGap); // Max 30 points
+
+  // 9b. Data completeness
+  if (formAvailable) confidenceScore += 15;
+  if (apiPred) confidenceScore += 15;
+  if (h2h.length >= 3) confidenceScore += 10;
+
+  // 9c. Market strength
+  if (bestMarket?.prob >= 60) confidenceScore += 15;
+  else if (bestMarket?.prob >= 50) confidenceScore += 8;
+
+  // 9d. Signal alignment: form + poisson agree
+  if (formAvailable && bestMarket?.type === 'home_win' && homeFormScore >= 60) confidenceScore += 10;
+  if (formAvailable && bestMarket?.type === 'away_win' && awayFormScore >= 60) confidenceScore += 10;
+
+  // 9e. Penalty for massive injuries on favorite
+  if (bestMarket?.type === 'home_win' && homeInjuries >= 3) confidenceScore -= 20;
+  if (bestMarket?.type === 'away_win' && awayInjuries >= 3) confidenceScore -= 20;
+
+  // 9f. Bonus for Smart Money alignment
+  if (realOdds) {
+    if (bestMarket?.type === 'home_win' && realOdds.home < (100/poisson.homeWinProb) * 0.9) confidenceScore += 10;
+    if (bestMarket?.type === 'away_win' && realOdds.away < (100/poisson.awayWinProb) * 0.9) confidenceScore += 10;
+  }
+
+  // 9g. Penalty for Rotation Risk (Champions League)
+  if (bestMarket?.type === 'home_win' || bestMarket?.type === 'double_chance_1X') confidenceScore -= homeFatiguePenalty;
+  if (bestMarket?.type === 'away_win' || bestMarket?.type === 'double_chance_X2') confidenceScore -= awayFatiguePenalty;
+
+  const confidence = confidenceScore >= 65 ? 'high' : confidenceScore >= 40 ? 'medium' : 'low';
+
+  // ── 10. Quality Gate ──────────────────────────────
+  // A prono MUST pass this gate to be published
+  const qualityGate = {
+    passed: false,
+    reason: '',
+    minConfidence: 40,
+    minProb: 48
+  };
+
+  if (!bestMarket) {
+    qualityGate.reason = 'Aucun marché viable identifié';
+  } else if (bestMarket.prob < qualityGate.minProb) {
+    qualityGate.reason = `Probabilité trop faible (${bestMarket.prob}% < ${qualityGate.minProb}%)`;
+  } else if (confidenceScore < qualityGate.minConfidence) {
+    qualityGate.reason = `Confiance insuffisante (${confidenceScore} < ${qualityGate.minConfidence})`;
+  } else if (clarityGap < 8) {
+    qualityGate.reason = `Match trop incertain (écart ${clarityGap}% entre issues)`;
+  } else {
+    qualityGate.passed = true;
+    qualityGate.reason = 'Tous les critères de qualité satisfaits';
+  }
+
+  // ── 11. Generate signals summary ──────────────────
+  if (poisson.over25Prob >= 65) signals.push(`Over 2.5 probable (${poisson.over25Prob}%)`);
+  if (poisson.bttsProb >= 60) signals.push(`BTTS probable (${poisson.bttsProb}%)`);
+  if (poisson.homeWinProb >= 55) signals.push(`Domicile favori (${poisson.homeWinProb}%)`);
+  if (poisson.awayWinProb >= 50) signals.push(`Extérieur favori (${poisson.awayWinProb}%)`);
+  if (homeXg >= 2.0) signals.push(`xG domicile élevé (${homeXg.toFixed(2)})`);
+  if (awayXg >= 1.8) signals.push(`xG extérieur élevé (${awayXg.toFixed(2)})`);
 
   return {
-    home_win_score: finalScore,
-    over25_prob: Math.round(over25Prob),
-    btts_prob: Math.round(bttsProbEstimate),
-    home_expected_goals: Math.round(homeExpectedGoals * 10) / 10,
-    away_expected_goals: Math.round(awayExpectedGoals * 10) / 10,
+    // Core probabilities
+    poisson,
+    homeXg: Math.round(homeXg * 100) / 100,
+    awayXg: Math.round(awayXg * 100) / 100,
+    totalXg: Math.round((homeXg + awayXg) * 100) / 100,
+
+    // Legacy fields (backward compat)
+    home_win_score: compositeScore,
+    over25_prob: poisson.over25Prob,
+    btts_prob: poisson.bttsProb,
+    home_expected_goals: Math.round(homeXg * 10) / 10,
+    away_expected_goals: Math.round(awayXg * 10) / 10,
+
+    // Form
+    homeForm: homeFormScore,
+    awayForm: awayFormScore,
+
+    // Market recommendations
+    markets,
+    bestMarket,
+
+    // Quality
+    confidenceScore,
+    confidence,
+    qualityGate,
+
+    // Signals
     signals,
     warnings,
-    recommendation,
-    confidence: finalScore >= 70 || finalScore <= 30 ? 'high' : finalScore >= 60 || finalScore <= 40 ? 'medium' : 'low'
+
+    // API predictions alignment
+    apiPredictions: apiPred ? {
+      homeProb: apiHomeProb,
+      drawProb: apiDrawProb,
+      awayProb: apiAwayProb,
+      advice: apiAdvice
+    } : null,
+
+    // Market context
+    bookmakerOdds: realOdds,
+    injuriesSummary: injuries.length > 0 ? {
+      home: homeInjuries,
+      away: awayInjuries,
+      details: injuries
+    } : null,
+    standingsSummary: standings.length > 0 ? {
+      homeRank, awayRank, homeDesc, awayDesc
+    } : null,
+    nextMatchSummary: {
+      home: homeNext,
+      away: awayNext
+    },
+
+    // H2H summary
+    h2hSummary: h2h.length > 0 ? {
+      total: h2h.length,
+      homeWins: h2hHomeWins,
+      draws: h2hDraws,
+      awayWins: h2hAwayWins,
+      avgGoals: Math.round((h2hTotalGoals / h2h.length) * 10) / 10
+    } : null,
+
+    // Exact scores
+    topScores: poisson.topScores
   };
+}
+
+/**
+ * Rank matches by analysis quality — best first.
+ * Used to select which matches deserve a prono.
+ */
+export function rankMatchesByQuality(matches) {
+  return matches
+    .map(m => ({ match: m, scoring: scoreMatch(m) }))
+    .filter(({ scoring }) => scoring.qualityGate.passed)
+    .sort((a, b) => {
+      // Primary: confidence score
+      if (b.scoring.confidenceScore !== a.scoring.confidenceScore) {
+        return b.scoring.confidenceScore - a.scoring.confidenceScore;
+      }
+      // Secondary: best market probability
+      return (b.scoring.bestMarket?.prob || 0) - (a.scoring.bestMarket?.prob || 0);
+    });
 }

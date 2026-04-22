@@ -1,4 +1,4 @@
-﻿/* ====================================================
+/* ====================================================
    GOLIAT — Pronos Routes (v2)
    Architecture cache-first:
    1. Lit depuis cache/data/pronos.json (instant)
@@ -98,8 +98,13 @@ router.get('/free', async (req, res) => {
     // Start with naturally free pronos
     let freePronos = allPronos.filter(p => !p.is_vip);
 
-    // Check: is there at least 1 big league among free pronos?
-    const hasBigLeagueFree = freePronos.some(p => isBigLeague(p.competition));
+    const MAX_FREE = 4;
+
+    // Sort by reliability to show the best ones first
+    freePronos = freePronos.sort((a, b) => (b.fiabilite || 0) - (a.fiabilite || 0));
+
+    // Check: is there at least 1 big league among the free pronos we are about to show?
+    const hasBigLeagueFree = freePronos.slice(0, MAX_FREE).some(p => isBigLeague(p.competition));
 
     if (!hasBigLeagueFree) {
       // Promote the best big-league VIP prono to free (highest fiabilite)
@@ -109,7 +114,7 @@ router.get('/free', async (req, res) => {
 
       if (bigLeagueVip) {
         // Temporarily mark as free for this response (don't mutate cache)
-        freePronos = [{ ...bigLeagueVip, is_vip: false }, ...freePronos];
+        freePronos = [{ ...bigLeagueVip, is_vip: false }, ...freePronos.filter(p => p.fixture_id !== bigLeagueVip.fixture_id)];
         logger.info(`[pronos/free] Auto-promu: ${bigLeagueVip.match} (${bigLeagueVip.competition}) → gratuit`);
       }
     }
@@ -122,6 +127,9 @@ router.get('/free', async (req, res) => {
         .slice(0, 2)
         .map(p => ({ ...p, is_vip: false }));
     }
+
+    // Enforce strict limit
+    freePronos = freePronos.slice(0, MAX_FREE);
 
     const formatted = freePronos.map(p => formatProno(p, false));
     memSet(cacheKey, formatted, 300);

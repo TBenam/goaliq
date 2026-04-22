@@ -1,6 +1,6 @@
 ﻿{
-  "name": "GOLIAT – Pronostics Sport Premium",
-  "short_name": "GOLIAT",
+  "name": "Goliat – Pronostics Sport Premium",
+  "short_name": "Goliat",
   "description": "Pronostics sportifs premium orientés Afrique. Rejoignez le club des gagnants.",
   "start_url": "/index.html",
   "scope": "/",
@@ -50,7 +50,7 @@
       "sizes": "390x844",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "GOLIAT – Accueil Pronostics"
+      "label": "Goliat – Accueil Pronostics"
     }
   ]
 }

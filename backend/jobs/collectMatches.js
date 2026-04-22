@@ -1,6 +1,7 @@
-﻿/* ====================================================
-   GOLIAT — Data Collector (v2)
+/* ====================================================
+   GOLIAT — Data Collector v3
    - Collecte les matchs depuis API-Football
+   - Enrichit avec H2H + Predictions API
    - Sauvegarde en cache JSON local (prioritaire)
    - Sauvegarde aussi dans Firestore si disponible
    - Les clients NE touchent JAMAIS à l'API externe
@@ -48,6 +49,11 @@ const afClient = axios.create({
   timeout: 15000
 });
 
+// ── Rate limiter ──────────────────────────────────────
+async function rateLimitPause(ms = 400) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
 // ── Fetch team stats (with retry) ────────────────────
 async function fetchTeamStats(teamId, leagueId, season = CURRENT_SEASON) {
   try {
@@ -63,6 +69,136 @@ async function fetchTeamStats(teamId, leagueId, season = CURRENT_SEASON) {
       });
       return data.response || null;
     } catch { return null; }
+  }
+}
+
+// ── Fetch API-Football predictions for a fixture ─────
+async function fetchPredictions(fixtureId) {
+  try {
+    const { data } = await afClient.get('/predictions', {
+      params: { fixture: fixtureId }
+    });
+    const pred = data.response?.[0];
+    if (!pred) return null;
+
+    return {
+      winner: pred.predictions?.winner?.name || null,
+      advice: pred.predictions?.advice || null,
+      percent: {
+        home: pred.predictions?.percent?.home?.replace('%', '') || null,
+        draw: pred.predictions?.percent?.draw?.replace('%', '') || null,
+        away: pred.predictions?.percent?.away?.replace('%', '') || null
+      },
+      goals: pred.predictions?.goals || null,
+      comparison: pred.comparison || null
+    };
+  } catch (err) {
+    logger.debug(`[Collector] Predictions non dispo pour fixture ${fixtureId}: ${err.message}`);
+    return null;
+  }
+}
+
+// ── Fetch H2H between two teams ──────────────────────
+async function fetchH2H(homeTeamId, awayTeamId) {
+  try {
+    const { data } = await afClient.get('/fixtures/headtohead', {
+      params: { h2h: `${homeTeamId}-${awayTeamId}`, last: 5 }
+    });
+    const matches = data.response || [];
+    return matches.map(m => ({
+      date: m.fixture?.date,
+      home_team: m.teams?.home?.name,
+      away_team: m.teams?.away?.name,
+      home_goals: m.goals?.home ?? null,
+      away_goals: m.goals?.away ?? null,
+      league: m.league?.name
+    }));
+  } catch (err) {
+    logger.debug(`[Collector] H2H non dispo: ${err.message}`);
+    return [];
+  }
+}
+
+// ── Fetch Injuries ────────────────────────────────────
+async function fetchInjuries(fixtureId) {
+  try {
+    const { data } = await afClient.get('/injuries', { params: { fixture: fixtureId } });
+    if (!data.response || data.response.length === 0) return [];
+    
+    return data.response.map(inj => ({
+      player: inj.player.name,
+      team_id: inj.team.id,
+      team_name: inj.team.name,
+      reason: inj.player.reason || inj.player.type || 'Absent'
+    }));
+  } catch (err) {
+    return [];
+  }
+}
+
+// ── Fetch Pre-Match Odds ──────────────────────────────
+async function fetchOdds(fixtureId) {
+  try {
+    const { data } = await afClient.get('/odds', { params: { fixture: fixtureId } });
+    const bookmaker = data.response?.[0]?.bookmakers?.[0]; // Usually first available (Bet365/1xBet)
+    if (!bookmaker) return null;
+    
+    const matchWinner = bookmaker.bets.find(b => b.name === 'Match Winner');
+    if (!matchWinner) return null;
+
+    return {
+      home: parseFloat(matchWinner.values.find(v => v.value === 'Home')?.odd || 0),
+      draw: parseFloat(matchWinner.values.find(v => v.value === 'Draw')?.odd || 0),
+      away: parseFloat(matchWinner.values.find(v => v.value === 'Away')?.odd || 0)
+    };
+  } catch (err) {
+    return null;
+  }
+}
+
+// ── Local cache for standings during collection ────────
+const standingsCache = {};
+
+// ── Fetch Standings (Mathematical Stakes) ─────────────
+async function fetchStandings(leagueId, season) {
+  const cacheKey = `${leagueId}-${season}`;
+  if (standingsCache[cacheKey]) return standingsCache[cacheKey];
+
+  try {
+    const { data } = await afClient.get('/standings', { params: { league: leagueId, season: season } });
+    const standings = data.response?.[0]?.league?.standings?.[0] || [];
+    const formatted = standings.map(s => ({
+      rank: s.rank,
+      team_id: s.team.id,
+      points: s.points,
+      description: s.description // e.g., "Promotion - Champions League", "Relegation"
+    }));
+    standingsCache[cacheKey] = formatted;
+    return formatted;
+  } catch (err) {
+    return [];
+  }
+}
+
+// ── Fetch Next Match (Fatigue/Rotation Risk) ──────────
+async function fetchNextMatch(teamId, currentDateStr) {
+  try {
+    const { data } = await afClient.get('/fixtures', { params: { team: teamId, next: 1 } });
+    const nextFixture = data.response?.[0];
+    if (!nextFixture) return null;
+    
+    const current = new Date(currentDateStr);
+    const nextMatchDate = new Date(nextFixture.fixture.date);
+    const diffDays = (nextMatchDate - current) / (1000 * 60 * 60 * 24);
+    
+    return {
+      date: nextFixture.fixture.date,
+      competition: nextFixture.league.name,
+      opponent: nextFixture.teams.home.id === teamId ? nextFixture.teams.away.name : nextFixture.teams.home.name,
+      days_rest: Math.round(diffDays)
+    };
+  } catch (err) {
+    return null;
   }
 }
 
@@ -86,9 +222,23 @@ function getLeagueScore(leagueId) {
 async function buildMatchObject(fixture, leagueScore) {
   const leagueId = fixture.league.id;
   const season = fixture.league.season || CURRENT_SEASON;
-  const [homeStats, awayStats] = await Promise.all([
-    fetchTeamStats(fixture.teams.home.id, leagueId, season),
-    fetchTeamStats(fixture.teams.away.id, leagueId, season)
+  const fixtureId = fixture.fixture.id;
+  const homeTeamId = fixture.teams.home.id;
+  const awayTeamId = fixture.teams.away.id;
+
+  logger.info(`  📊 Enrichissement: ${fixture.teams.home.name} vs ${fixture.teams.away.name}...`);
+
+  // Fetch all enrichment data in parallel
+  const [homeStats, awayStats, predictions, h2h, injuries, odds, standings, homeNextMatch, awayNextMatch] = await Promise.all([
+    fetchTeamStats(homeTeamId, leagueId, season),
+    fetchTeamStats(awayTeamId, leagueId, season),
+    fetchPredictions(fixtureId),
+    fetchH2H(homeTeamId, awayTeamId),
+    fetchInjuries(fixtureId),
+    fetchOdds(fixtureId),
+    fetchStandings(leagueId, season),
+    fetchNextMatch(homeTeamId, fixture.fixture.date),
+    fetchNextMatch(awayTeamId, fixture.fixture.date)
   ]);
 
   // Determine flag emoji
@@ -97,7 +247,7 @@ async function buildMatchObject(fixture, leagueScore) {
     : '🌍';
 
   return {
-    fixture_id: fixture.fixture.id,
+    fixture_id: fixtureId,
     league_id: leagueId,
     league_name: fixture.league.name,
     league_flag: flag,
@@ -105,8 +255,8 @@ async function buildMatchObject(fixture, leagueScore) {
     league_score: leagueScore,
     home_team: fixture.teams.home.name,
     away_team: fixture.teams.away.name,
-    home_team_id: fixture.teams.home.id,
-    away_team_id: fixture.teams.away.id,
+    home_team_id: homeTeamId,
+    away_team_id: awayTeamId,
     home_team_logo: fixture.teams.home.logo,
     away_team_logo: fixture.teams.away.logo,
     kickoff: fixture.fixture.date,
@@ -118,6 +268,14 @@ async function buildMatchObject(fixture, leagueScore) {
     away_goals_avg: parseFloat(awayStats?.goals?.for?.average?.total || 1.0),
     home_goals_conceded: parseFloat(homeStats?.goals?.against?.average?.total || 1.2),
     away_goals_conceded: parseFloat(awayStats?.goals?.against?.average?.total || 1.2),
+    // NEW: Enriched data
+    api_predictions: predictions,
+    h2h: h2h,
+    injuries: injuries,
+    bookmaker_odds: odds,
+    standings: standings,
+    home_next_match: homeNextMatch,
+    away_next_match: awayNextMatch,
     status: fixture.fixture.status.short,
     prono_generated: false,
     collected_at: new Date().toISOString()
@@ -133,7 +291,12 @@ async function tryFirestoreSave(matches) {
     const batch = db.batch();
     for (const m of matches) {
       const ref = db.collection('matches').doc(String(m.fixture_id));
-      batch.set(ref, { ...m }, { merge: true });
+      batch.set(ref, {
+        ...m,
+        // Firestore doesn't support nested arrays well, flatten for storage
+        h2h_count: m.h2h?.length || 0,
+        api_prediction_advice: m.api_predictions?.advice || null
+      }, { merge: true });
     }
     await batch.commit();
     logger.info(`[Firestore] ${matches.length} matchs sauvegardés`);
@@ -149,7 +312,7 @@ export async function fetchMatches() {
     return [];
   }
 
-  logger.info('[Collector] 🚀 Démarrage collecte API-Football...');
+  logger.info('[Collector] 🚀 Démarrage collecte API-Football v3...');
 
   // Collect today + tomorrow
   const today = new Date().toISOString().split('T')[0];
@@ -164,29 +327,38 @@ export async function fetchMatches() {
   ]);
 
   const allFixtures = [...todayFixtures, ...tomorrowFixtures];
-  logger.info(`[Collector] ${allFixtures.length} matchs bruts récupérés (${todayFixtures.length} ce soir + ${tomorrowFixtures.length} demain)`);
+  logger.info(`[Collector] ${allFixtures.length} matchs bruts récupérés (${todayFixtures.length} aujourd'hui + ${tomorrowFixtures.length} demain)`);
 
   if (allFixtures.length === 0) {
     logger.warn('[Collector] Aucun match trouvé depuis l\'API.');
     return [];
   }
 
-  // ── Filter: only known leagues (score > 0) ─────────
+  // ── Filter: only known leagues (score > 0) + not started ─────
   const eligibleFixtures = allFixtures
-    .filter(f => getLeagueScore(f.league.id) > 0)
+    .filter(f => {
+      const score = getLeagueScore(f.league.id);
+      const status = f.fixture.status.short;
+      // Only collect matches NOT YET STARTED
+      return score > 0 && ['NS', 'TBD'].includes(status);
+    })
     .sort((a, b) => getLeagueScore(b.league.id) - getLeagueScore(a.league.id))
-    .slice(0, 20); // Max 20 matchs par cycle (protège le quota API)
+    .slice(0, 15); // Max 15 matchs par cycle
 
-  logger.info(`[Collector] ${eligibleFixtures.length} matchs éligibles (ligues prioritaires)`);
+  logger.info(`[Collector] ${eligibleFixtures.length} matchs éligibles (ligues prioritaires, pas encore commencés)`);
 
-  // ── Fetch stats for each match ─────────────────────
+  // ── Fetch stats + predictions + H2H for each match ─
   const allMatches = [];
   for (const fixture of eligibleFixtures) {
     const leagueScore = getLeagueScore(fixture.league.id);
     const match = await buildMatchObject(fixture, leagueScore);
     allMatches.push(match);
-    logger.info(`  ✓ [${match.league_name}] ${match.home_team} vs ${match.away_team} — ${match.heure || match.kickoff}`);
-    await new Promise(r => setTimeout(r, 350)); // rate limit
+
+    const predInfo = match.api_predictions?.advice ? ` — API: "${match.api_predictions.advice}"` : '';
+    const h2hInfo = match.h2h?.length ? ` — H2H: ${match.h2h.length} matchs` : '';
+    logger.info(`  ✓ [${match.league_name}] ${match.home_team} vs ${match.away_team}${predInfo}${h2hInfo}`);
+
+    await rateLimitPause(500); // Rate limit between enrichments (4 calls per match)
   }
 
   // Sort by kickoff time
@@ -198,7 +370,7 @@ export async function fetchMatches() {
   // ── Try Firestore (SECONDARY, optional) ────────────
   await tryFirestoreSave(allMatches);
 
-  logger.info(`[Collector] ✅ ${allMatches.length} matchs collectés et mis en cache`);
+  logger.info(`[Collector] ✅ ${allMatches.length} matchs collectés et enrichis (predictions + H2H)`);
   return allMatches;
 }
 
