@@ -357,11 +357,6 @@ function hydrateRenderedView(container, view) {
     if (subtitle) {
       subtitle.textContent = `Les pépites IA pour aujourd'hui — ${getCurrentDateLabel()}`;
     }
-
-    const featuredCard = container.querySelector('#main-match-card');
-    if (featuredCard) {
-      featuredCard.outerHTML = buildFeaturedPronoCard();
-    }
   }
 }
 
@@ -824,7 +819,7 @@ const Views = {
           <span class="section-link" onclick="Router.navigate('pronos')" style="cursor:pointer;">Voir tout →</span>
         </div>
 
-        ${DATA.pronos_gratuits.map(p => C.matchCard(p)).join('')}
+        <div id="accueil-free-pronos">${DATA.pronos_gratuits.map(p => C.matchCard(p)).join('')}</div>
 
         <!-- EXCLUSIVITÉS RÉSERVÉES -->
         <div class="section-header mb-4" style="margin-top:12px;">
@@ -889,64 +884,8 @@ const Views = {
           <div class="chip" data-filter="btts" onclick="UI.filterPronos(this)" role="tab" tabindex="0">BTTS</div>
         </div>
 
-        <!-- Match Principal (full card) -->
-        <div class="card-elevated mb-6" id="main-match-card">
-          <div style="padding:20px;padding-bottom:0;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-              <span class="badge badge-primary">Champions League</span>
-              <span style="display:flex;align-items:center;gap:5px;font-size:0.78rem;font-weight:600;color:var(--outline);">
-                <span class="material-symbols-outlined icon-sm">schedule</span> 21:00
-              </span>
-            </div>
-            <!-- Teams -->
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:0 12px;margin-bottom:14px;">
-              <div style="display:flex;flex-direction:column;align-items:center;gap:8px;flex:1;">
-                <div style="width:60px;height:60px;background:var(--surface-container);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:2rem;">⚪</div>
-                <span style="font-weight:700;font-size:0.82rem;text-align:center;">Real Madrid</span>
-              </div>
-              <span style="font-weight:900;font-size:1rem;color:var(--outline-variant);opacity:0.3;">VS</span>
-              <div style="display:flex;flex-direction:column;align-items:center;gap:8px;flex:1;">
-                <div style="width:60px;height:60px;background:var(--surface-container);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:2rem;">🔴</div>
-                <span style="font-weight:700;font-size:0.82rem;text-align:center;">Bayern Munich</span>
-              </div>
-            </div>
-            <!-- Prediction -->
-            <div style="background:var(--surface-container-low);border-radius:var(--radius-lg);padding:14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-              <div>
-                <div style="font-size:0.62rem;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:var(--outline);">Pronostic IA</div>
-                <div style="font-size:1rem;font-weight:900;color:var(--primary);margin-top:2px;">Victoire Real Madrid</div>
-              </div>
-              <div style="text-align:right;">
-                <div style="font-size:0.62rem;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:var(--outline);">Cote</div>
-                <div style="font-size:1.5rem;font-weight:900;">@1.85</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Locked Analysis -->
-          <div style="position:relative;overflow:hidden;">
-            <div style="padding:16px 20px;background:rgba(231,232,233,0.4);filter:blur(5px);pointer-events:none;">
-              <div style="font-weight:700;font-size:0.9rem;margin-bottom:8px;">Analyse Tactique</div>
-              <div style="font-size:0.82rem;color:var(--on-surface-variant);line-height:1.6;">Le bloc défensif du Real s'est amélioré de 23% en xGA depuis le retour de Militão. L'attaque bavaroise perd en verticalité sans Neuer dans les relances...</div>
-              <div style="height:10px;background:rgba(187,202,191,0.3);border-radius:6px;width:80%;margin-top:8px;"></div>
-            </div>
-            <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);background:rgba(225,227,228,0.55);">
-              <span style="font-size:1.6rem;">🔒</span>
-              <span style="font-size:0.75rem;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:var(--on-surface);">Analyse Tactique VIP</span>
-              <button class="btn-ghost" onclick="Modal.open()">Passer VIP</button>
-            </div>
-          </div>
-
-          <!-- CTA row -->
-          <div style="padding:16px 20px;display:flex;gap:10px;align-items:center;">
-            <button class="btn-primary" style="flex:1;" onclick="UI.shareTicket('Real Madrid vs Bayern','Victoire Real Madrid',1.85)">
-              <span class="material-symbols-outlined icon-sm">confirmation_number</span> VOIR LE TICKET
-            </button>
-            <button style="width:48px;height:48px;background:var(--surface-container);border-radius:50%;display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;color:#25D366;font-size:1.2rem;" onclick="UI.shareTicket('Real Madrid vs Bayern','Victoire Real Madrid',1.85)">
-              <span class="material-symbols-outlined">share</span>
-            </button>
-          </div>
-        </div>
+        <!-- Match Principal (full card) — rendered dynamically from live data -->
+        ${buildFeaturedPronoCard()}
 
         <!-- Bonus Prono Flash -->
         <div style="background:linear-gradient(135deg,rgba(254,166,25,0.12),rgba(254,166,25,0.04));border:2px solid rgba(254,166,25,0.35);border-radius:var(--radius-xl);padding:20px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:14px;margin-bottom:24px;position:relative;overflow:hidden;">
