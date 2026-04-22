@@ -1,5 +1,5 @@
-/* ====================================================
-   GoalIQ — Scoring Engine
+﻿/* ====================================================
+   GOLIAT — Scoring Engine
    Algorithme de scoring 0-100 basé sur les stats
    Input: row de la collection Firestore 'matches'
    Output: { home_win_score, over25_prob, signals, recommendation }

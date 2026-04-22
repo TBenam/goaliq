@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $backend = Join-Path $root 'backend'
@@ -7,7 +7,7 @@ if (-not (Test-Path $backend)) {
   throw "Backend introuvable: $backend"
 }
 
-Write-Host "GoalIQ - lancement des services..." -ForegroundColor Cyan
+Write-Host "GOLIAT - lancement des services..." -ForegroundColor Cyan
 Write-Host "Racine   : $root"
 Write-Host "Backend  : $backend"
 
@@ -23,7 +23,7 @@ Write-Host " - Frontend  : http://localhost:5500"
 Write-Host " - API       : http://localhost:3001/api/health"
 Write-Host " - Scheduler : deja embarque dans l'API"
 Write-Host ""
-Write-Host "Si vous êtes déjà dans goaliq-pwa, utilisez aussi ces commandes simples :" -ForegroundColor Yellow
+Write-Host "Si vous êtes déjà dans goliat-pwa, utilisez aussi ces commandes simples :" -ForegroundColor Yellow
 Write-Host " - npm run api"
 Write-Host " - npm run frontend"
 Write-Host ""

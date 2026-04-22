@@ -1,7 +1,7 @@
-{
-  "name": "goaliq-backend",
+﻿{
+  "name": "goliat-backend",
   "version": "1.0.0",
-  "description": "GoalIQ Backend — Data collector, Scoring Engine, Groq Analyzer, REST API",
+  "description": "GOLIAT Backend — Data collector, Scoring Engine, Groq Analyzer, REST API",
   "type": "module",
   "main": "server.js",
   "scripts": {

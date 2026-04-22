@@ -1,4 +1,4 @@
-# ── GoalIQ Backend — Dockerfile ──────────────────────
+﻿# ── GOLIAT Backend — Dockerfile ──────────────────────
 FROM node:22-alpine
 
 # Timezone Afrique/Douala pour que le cron soit correct

@@ -1,5 +1,5 @@
-/* ====================================================
-   GoalIQ — Notifications Routes
+﻿/* ====================================================
+   GOLIAT — Notifications Routes
    POST /api/notifications/subscribe   → save FCM token
    DELETE /api/notifications/unsubscribe → remove token
    POST /api/notifications/broadcast   → send to all (admin)

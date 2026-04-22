@@ -1,5 +1,5 @@
-/* ====================================================
-   GoalIQ — Seed: Inject realistic test data into local cache
+﻿/* ====================================================
+   GOLIAT — Seed: Inject realistic test data into local cache
    Run: node seed-cache.js
    ==================================================== */
 

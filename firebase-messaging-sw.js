@@ -1,5 +1,5 @@
-/* ====================================================
-   GoalIQ — Firebase Messaging Service Worker
+﻿/* ====================================================
+   GOLIAT — Firebase Messaging Service Worker
    Handles background FCM push notifications.
    MUST be at the root of the PWA (same scope as SW).
    ==================================================== */
@@ -32,13 +32,13 @@ messaging.onBackgroundMessage((payload) => {
   const { title, body, imageUrl } = payload.notification || {};
   const data = payload.data || {};
 
-  const notificationTitle = title || '🔥 GoalIQ — Nouvelle alerte';
+  const notificationTitle = title || '🔥 GOLIAT — Nouvelle alerte';
   const notificationOptions = {
     body: body || 'Un nouveau prono est disponible !',
     icon: '/icons/icon-192.png',
     badge: '/icons/icon-192.png',
     image: imageUrl,
-    tag: data.type || 'goaliq-prono',
+    tag: data.type || 'goliat-prono',
     requireInteraction: data.urgent === 'true',
     data: { url: data.url || '/#pronos' },
     actions: [
@@ -59,7 +59,7 @@ self.addEventListener('notificationclick', (event) => {
   if (event.action === 'voir' || !event.action) {
     event.waitUntil(
       clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-        const existing = clientList.find(c => c.url.includes('goaliq') || c.url.includes('localhost'));
+        const existing = clientList.find(c => c.url.includes('goliat') || c.url.includes('localhost'));
         if (existing) {
           existing.focus();
           existing.navigate(url);

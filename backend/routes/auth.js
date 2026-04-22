@@ -1,5 +1,5 @@
-/* ====================================================
-   GoalIQ — Auth Routes
+﻿/* ====================================================
+   GOLIAT — Auth Routes
    POST /api/auth/register   → create/sync user in Firestore
    POST /api/auth/activate-vip → activate VIP via code
    GET  /api/auth/me         → get user profile

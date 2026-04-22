@@ -1,5 +1,5 @@
-/* ====================================================
-   GoalIQ — Cache Manager Local
+﻿/* ====================================================
+   GOLIAT — Cache Manager Local
    Stocke les données en JSON local sur le serveur.
    Les clients lisent uniquement depuis ce cache —
    zéro appel API externe par utilisateur.

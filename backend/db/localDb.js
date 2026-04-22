@@ -1,11 +1,11 @@
-import { existsSync, mkdirSync } from 'fs';
+﻿import { existsSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { logger } from '../utils/logger.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, 'data');
-const DB_PATH = join(DATA_DIR, 'goaliq-local.db');
+const DB_PATH = join(DATA_DIR, 'goliat-local.db');
 
 if (!existsSync(DATA_DIR)) {
   mkdirSync(DATA_DIR, { recursive: true });

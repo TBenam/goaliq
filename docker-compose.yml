@@ -1,9 +1,9 @@
-services:
+﻿services:
 
   # ── Backend Node.js (API + Cron scheduler) ──────────
   api:
     build: ./backend
-    container_name: goaliq-api
+    container_name: goliat-api
     restart: always
     ports:
       - "3001:3001"
@@ -18,9 +18,9 @@ services:
       - ADMIN_SECRET=${ADMIN_SECRET}
     volumes:
       # Données persistantes : cache JSON + SQLite + logs
-      - goaliq_cache:/app/cache/data
-      - goaliq_db:/app/db/data
-      - goaliq_logs:/app/logs
+      - goliat_cache:/app/cache/data
+      - goliat_db:/app/db/data
+      - goliat_logs:/app/logs
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/health"]
       interval: 30s
@@ -30,7 +30,7 @@ services:
   # ── Frontend Nginx (PWA statique) ───────────────────
   frontend:
     build: .
-    container_name: goaliq-frontend
+    container_name: goliat-frontend
     restart: always
     ports:
       - "80:80"
@@ -38,6 +38,6 @@ services:
       - api
 
 volumes:
-  goaliq_cache:
-  goaliq_db:
-  goaliq_logs:
+  goliat_cache:
+  goliat_db:
+  goliat_logs:

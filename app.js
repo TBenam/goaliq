@@ -1,5 +1,5 @@
 /* ====================================================
-   GoalIQ PWA – app.js
+   GOLIAT PWA – app.js
    SPA Router + Views + Gamification + PWA Logic
    ==================================================== */
 
@@ -9,8 +9,10 @@
    API & FIREBASE CONFIG
    ============================================================ */
 
-// ← Remplacer par l'URL de votre backend déployé
-const API_BASE = 'http://localhost:3001/api';
+// Auto-détecte l'URL : sur le serveur = même domaine/IP, en local = localhost:3001
+const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ? 'http://localhost:3001/api'
+  : `${window.location.protocol}//${window.location.hostname}/api`;
 
 // Firebase config — Projet: goliat-8bf4a
 const FIREBASE_CONFIG = {
@@ -33,17 +35,17 @@ let _fbUser = null; // Firebase anonymous user
 /* ============================================================
    CONFIG — Liens de paiement MoneyFusion
    ============================================================ */
-// ── Numéro WhatsApp GoalIQ ──────────────────────────
+// ── Numéro WhatsApp GOLIAT ──────────────────────────
 const WA_NUMBER = '237697259094';
 
 // ── Génère un code client unique et persistant ───────
 function getVipCode() {
-  let code = localStorage.getItem('goaliq_vip_code');
+  let code = localStorage.getItem('goliat_vip_code');
   if (!code) {
     // Génère GIQ-XXXXXX (6 chars alphanumériques)
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     code = 'GIQ-' + Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-    localStorage.setItem('goaliq_vip_code', code);
+    localStorage.setItem('goliat_vip_code', code);
   }
   return code;
 }
@@ -52,10 +54,10 @@ function getVipCode() {
 function buildWaLink(plan) {
   const code = getVipCode();
   const messages = {
-    weekly:    `Bonjour GoalIQ 👋\n\nJe souhaite souscrire au plan *VIP 7 jours* (3 500 FCFA).\n\nMon code d'activation : *${code}*\n\nMerci !`,
-    monthly:   `Bonjour GoalIQ 👋\n\nJe souhaite souscrire au plan *VIP Mensuel* (10 000 FCFA).\n\nMon code d'activation : *${code}*\n\nMerci !`,
-    quarterly: `Bonjour GoalIQ 👋\n\nJe souhaite souscrire au plan *VIP Trimestriel* (25 000 FCFA).\n\nMon code d'activation : *${code}*\n\nMerci !`,
-    bonus:     `Bonjour GoalIQ 👋\n\nJe veux débloquer le *Prono Caché Bonus* (1 000 FCFA).\n\nMon code d'activation : *${code}*\n\nMerci !`
+    weekly:    `Bonjour GOLIAT 👋\n\nJe souhaite souscrire au plan *VIP 7 jours* (3 500 FCFA).\n\nMon code d'activation : *${code}*\n\nMerci !`,
+    monthly:   `Bonjour GOLIAT 👋\n\nJe souhaite souscrire au plan *VIP Mensuel* (10 000 FCFA).\n\nMon code d'activation : *${code}*\n\nMerci !`,
+    quarterly: `Bonjour GOLIAT 👋\n\nJe souhaite souscrire au plan *VIP Trimestriel* (25 000 FCFA).\n\nMon code d'activation : *${code}*\n\nMerci !`,
+    bonus:     `Bonjour GOLIAT 👋\n\nJe veux débloquer le *Prono Caché Bonus* (1 000 FCFA).\n\nMon code d'activation : *${code}*\n\nMerci !`
   };
   const msg = encodeURIComponent(messages[plan] || messages.monthly);
   return `https://wa.me/${WA_NUMBER}?text=${msg}`;
@@ -63,7 +65,7 @@ function buildWaLink(plan) {
 
 const CONFIG = {
   version: '1.0.0',
-  appName: 'GoalIQ',
+  appName: 'GOLIAT',
   payment: {
     weekly: {
       id: 'weekly',
@@ -213,7 +215,7 @@ const DATA = {
 
   temoignages: [
     { texte: "J'ai transformé 30 000 FCFA en 1 500 000 FCFA en 7 jours grâce à La Montante VIP. C'est du sérieux.", auteur: 'Mamadou K.', ville: 'Dakar', pays: '🇸🇳', etoiles: 5 },
-    { texte: "GoalIQ est le seul service qui m'a rendu rentable en 6 mois de paris. Les analyses sont vraiment différentes.", auteur: 'Kouassi A.', ville: 'Abidjan', pays: '🇨🇮', etoiles: 5 },
+    { texte: "GOLIAT est le seul service qui m'a rendu rentable en 6 mois de paris. Les analyses sont vraiment différentes.", auteur: 'Kouassi A.', ville: 'Abidjan', pays: '🇨🇮', etoiles: 5 },
     { texte: "Les grosses cotes VIP sont dingues. J'ai touché @12.00 sur un score exact la semaine dernière.", auteur: 'Ibrahima D.', ville: 'Bamako', pays: '🇲🇱', etoiles: 5 },
     { texte: "Le groupe Telegram est incroyable. Les alertes arrivent 2h avant les autres. J'ai le temps de cliquer.", auteur: 'Chantal M.', ville: 'Douala', pays: '🇨🇲', etoiles: 5 }
   ],
@@ -285,7 +287,7 @@ function buildFeaturedPronoCard() {
   const prono = featuredProno?.prono || 'Analyse en cours';
   const cote = featuredProno?.cote || '--';
   const analysis = featuredProno?.analyse_vip || featuredProno?.description || 'Les analyses automatiques seront affichées ici dès que le pipeline serveur termine son cycle.';
-  const shareMatch = jsStringLiteral(featuredProno?.match || 'GoalIQ');
+  const shareMatch = jsStringLiteral(featuredProno?.match || 'GOLIAT');
   const shareProno = jsStringLiteral(prono);
   const shareCote = Number(featuredProno?.cote || 0);
 
@@ -593,12 +595,12 @@ const STATE = {
 
   init() {
     // VIP status
-    this.isVip = localStorage.getItem('goaliq_vip') === 'true';
+    this.isVip = localStorage.getItem('goliat_vip') === 'true';
 
     // Streak logic
     const today = new Date().toDateString();
-    const lastVisit = localStorage.getItem('goaliq_last_visit');
-    const storedStreak = parseInt(localStorage.getItem('goaliq_streak') || '0', 10);
+    const lastVisit = localStorage.getItem('goliat_last_visit');
+    const storedStreak = parseInt(localStorage.getItem('goliat_streak') || '0', 10);
 
     if (!lastVisit) {
       this.streak = 1;
@@ -611,13 +613,13 @@ const STATE = {
       else this.streak = 1;
     }
 
-    localStorage.setItem('goaliq_last_visit', today);
-    localStorage.setItem('goaliq_streak', this.streak);
+    localStorage.setItem('goliat_last_visit', today);
+    localStorage.setItem('goliat_streak', this.streak);
   },
 
   setVip(value) {
     this.isVip = value;
-    localStorage.setItem('goaliq_vip', value);
+    localStorage.setItem('goliat_vip', value);
   }
 };
 
@@ -1396,8 +1398,8 @@ const Modal = {
         clearInterval(Modal._pollTimer);
         // ✅ Accès VIP accordé !
         STATE.setVip(true);
-        localStorage.setItem('goaliq_vip_plan', data.plan);
-        localStorage.setItem('goaliq_vip_expires', data.expires_at);
+        localStorage.setItem('goliat_vip_plan', data.plan);
+        localStorage.setItem('goliat_vip_expires', data.expires_at);
 
         Modal.close();
         UI.showToast('🎉 Accès VIP activé ! Bienvenue dans l\'élite.', 5000);
@@ -1417,7 +1419,7 @@ const Modal = {
   },
 
   trackClick(planId) {
-    console.log(`[GoalIQ] Plan clicked: ${planId} — Code: ${getVipCode()}`);
+    console.log(`[GOLIAT] Plan clicked: ${planId} — Code: ${getVipCode()}`);
     Modal.startPolling();
   }
 };
@@ -1449,10 +1451,10 @@ const UI = {
   },
 
   shareTicket(match, prono, cote) {
-    const text = `🏆 *GoalIQ – Ticket du Jour*\n\n⚽ ${match}\n📊 Pronostic : *${prono}*\n📈 Cote : *@${cote}*\n\n💡 Rejoin GoalIQ pour les pronos VIP !\n👉 goaliq.app`;
+    const text = `🏆 *GOLIAT – Ticket du Jour*\n\n⚽ ${match}\n📊 Pronostic : *${prono}*\n📈 Cote : *@${cote}*\n\n💡 Rejoin GOLIAT pour les pronos VIP !\n👉 goliat.app`;
     if (navigator.share) {
       navigator.share({
-        title: 'GoalIQ – Mon ticket du jour',
+        title: 'GOLIAT – Mon ticket du jour',
         text: text
       }).catch(() => { });
     } else {
@@ -1484,9 +1486,9 @@ const PWA = {
     });
 
     window.addEventListener('appinstalled', () => {
-      console.log('[GoalIQ] PWA installed');
+      console.log('[GOLIAT] PWA installed');
       PWA.hideInstallBanner();
-      UI.showToast('🎉 GoalIQ installé sur votre écran d\'accueil !');
+      UI.showToast('🎉 GOLIAT installé sur votre écran d\'accueil !');
     });
 
     // Install btn
@@ -1511,10 +1513,10 @@ const PWA = {
       });
 
       navigator.serviceWorker.register('./sw.js').then(reg => {
-        console.log('[GoalIQ] SW registered:', reg.scope);
+        console.log('[GOLIAT] SW registered:', reg.scope);
         reg.update().catch(() => { });
       }).catch(err => {
-        console.warn('[GoalIQ] SW failed:', err);
+        console.warn('[GOLIAT] SW failed:', err);
       });
     }
   },
@@ -1746,7 +1748,7 @@ function init() {
       if (todayData?.meta) {
         const count = todayData.meta.total;
         if (count > 0) {
-          console.info(`[GoalIQ] ${count} pronos chargés depuis le serveur ✅`);
+          console.info(`[GOLIAT] ${count} pronos chargés depuis le serveur ✅`);
         }
       }
 
@@ -1769,7 +1771,7 @@ function init() {
     }
   }, 30000);
 
-  console.log(`[GoalIQ] App v${CONFIG.version} initialized. Streak: ${STATE.streak}. VIP: ${STATE.isVip}`);
+  console.log(`[GOLIAT] App v${CONFIG.version} initialized. Streak: ${STATE.streak}. VIP: ${STATE.isVip}`);
 }
 
 // VIP Code activation handler (called from the VIP modal)

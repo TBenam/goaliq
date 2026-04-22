@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto';
+﻿import { randomUUID } from 'crypto';
 import { logRequest } from '../db/localDb.js';
 
 function getClientIp(req) {
@@ -26,7 +26,7 @@ export function requestAuditMiddleware(req, res, next) {
       ip: getClientIp(req),
       userAgent: req.headers['user-agent'] || null,
       userUid: req.user?.uid || null,
-      cacheSource: res.getHeader('X-GoalIQ-Data-Source') || null,
+      cacheSource: res.getHeader('X-GOLIAT-Data-Source') || null,
       requestedAt: new Date(startedAt).toISOString(),
       meta: {
         query: req.query,

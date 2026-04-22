@@ -1,5 +1,5 @@
-/* ====================================================
-   GoalIQ — Admin Route
+﻿/* ====================================================
+   GOLIAT — Admin Route
    Activation des codes VIP après paiement WhatsApp
 
    USAGE:
@@ -16,7 +16,7 @@ import { logger } from '../utils/logger.js';
 
 const router = Router();
 
-const ADMIN_SECRET = process.env.ADMIN_SECRET || 'goaliq-admin-2026';
+const ADMIN_SECRET = process.env.ADMIN_SECRET || 'goliat-admin-2026';
 
 // Plans configuration
 const PLAN_DURATIONS = {
@@ -163,7 +163,7 @@ router.get('/panel', (req, res) => {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GoalIQ Admin — Activation VIP</title>
+  <title>GOLIAT Admin — Activation VIP</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, sans-serif; background: #0a0a0a; color: #fff; min-height: 100vh; padding: 24px 16px; }
@@ -189,7 +189,7 @@ router.get('/panel', (req, res) => {
   </style>
 </head>
 <body>
-  <h1>⚡ GoalIQ Admin</h1>
+  <h1>⚡ GOLIAT Admin</h1>
   <p class="sub">Panel d'activation VIP — Réservé à l'administrateur</p>
 
   <!-- Activation -->

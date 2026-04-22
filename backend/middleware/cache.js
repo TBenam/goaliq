@@ -1,5 +1,5 @@
-/* ====================================================
-   GoalIQ — In-Memory Cache
+﻿/* ====================================================
+   GOLIAT — In-Memory Cache
    Simple TTL cache to avoid redundant Firestore reads
    ==================================================== */
 

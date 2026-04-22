@@ -1,9 +1,9 @@
-/* ====================================================
-   GoalIQ PWA - Service Worker v2
+﻿/* ====================================================
+   GOLIAT PWA - Service Worker v2
    Network-first for app shell, cache-first for static externals
    ==================================================== */
 
-const CACHE_NAME = 'goaliq-v2';
+const CACHE_NAME = 'goliat-v2';
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -100,11 +100,11 @@ self.addEventListener('fetch', (event) => {
 
 self.addEventListener('push', (event) => {
   const defaults = {
-    title: 'GoalIQ - Alerte Cote',
+    title: 'GOLIAT - Alerte Cote',
     body: 'Une cote VIP vient d\'exploser. Agissez maintenant !',
     icon: '/icons/icon-192.png',
     badge: '/icons/icon-192.png',
-    tag: 'goaliq-alert',
+    tag: 'goliat-alert',
     requireInteraction: true,
     actions: [
       { action: 'voir', title: 'Voir le prono' },
@@ -133,7 +133,7 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      const existingClient = clientList.find((client) => client.url.includes('goaliq'));
+      const existingClient = clientList.find((client) => client.url.includes('goliat'));
       if (existingClient) {
         existingClient.focus();
         existingClient.navigate(targetUrl);

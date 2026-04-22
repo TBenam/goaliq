@@ -1,5 +1,5 @@
-/* ====================================================
-   GoalIQ — Auth Middleware
+﻿/* ====================================================
+   GOLIAT — Auth Middleware
    Firebase ID Token verification + VIP status check
    ==================================================== */
 

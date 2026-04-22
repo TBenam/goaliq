@@ -1,5 +1,5 @@
-/* ====================================================
-   GoalIQ — Firebase Admin SDK Initialization
+﻿/* ====================================================
+   GOLIAT — Firebase Admin SDK Initialization
    Project: goliat-8bf4a
    Firestore + Auth + FCM (Cloud Messaging)
    ==================================================== */

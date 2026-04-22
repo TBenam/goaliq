@@ -1,5 +1,5 @@
-/* ====================================================
-   GoalIQ — Pronos Routes (v2)
+﻿/* ====================================================
+   GOLIAT — Pronos Routes (v2)
    Architecture cache-first:
    1. Lit depuis cache/data/pronos.json (instant)
    2. Firestore en fallback si cache absent
@@ -88,7 +88,7 @@ router.get('/free', async (req, res) => {
   const cacheKey = 'pronos_free';
   const mem = memGet(cacheKey);
   if (mem) {
-    res.set('X-GoalIQ-Data-Source', 'memory-cache');
+    res.set('X-GOLIAT-Data-Source', 'memory-cache');
     return res.json(mem);
   }
 
@@ -125,7 +125,7 @@ router.get('/free', async (req, res) => {
 
     const formatted = freePronos.map(p => formatProno(p, false));
     memSet(cacheKey, formatted, 300);
-    res.set('X-GoalIQ-Data-Source', 'local-json-cache');
+    res.set('X-GOLIAT-Data-Source', 'local-json-cache');
     res.json(formatted);
     logger.info(`[pronos/free] ${formatted.length} pronos servis (big league: ${formatted.filter(p => isBigLeague(p.competition)).length})`);
   } catch (err) {
@@ -142,14 +142,14 @@ router.get('/vip', verifyVIP, async (req, res) => {
   const cacheKey = `pronos_vip_${req.user.uid}`;
   const mem = memGet(cacheKey);
   if (mem) {
-    res.set('X-GoalIQ-Data-Source', 'memory-cache');
+    res.set('X-GOLIAT-Data-Source', 'memory-cache');
     return res.json(mem);
   }
 
   try {
     const pronos = getPronos().map(p => formatProno(p, true)); // Include VIP analysis
     memSet(cacheKey, pronos, 180);
-    res.set('X-GoalIQ-Data-Source', 'local-json-cache');
+    res.set('X-GOLIAT-Data-Source', 'local-json-cache');
     res.json(pronos);
   } catch (err) {
     logger.error('[pronos/vip] Erreur:', err.message);
@@ -165,7 +165,7 @@ router.get('/today', optionalAuth, async (req, res) => {
   const cacheKey = 'pronos_today';
   const mem = memGet(cacheKey);
   if (mem) {
-    res.set('X-GoalIQ-Data-Source', 'memory-cache');
+    res.set('X-GOLIAT-Data-Source', 'memory-cache');
     return res.json(mem);
   }
 
@@ -199,7 +199,7 @@ router.get('/today', optionalAuth, async (req, res) => {
     };
 
     memSet(cacheKey, result, 180);
-    res.set('X-GoalIQ-Data-Source', 'local-json-cache');
+    res.set('X-GOLIAT-Data-Source', 'local-json-cache');
     res.json(result);
   } catch (err) {
     logger.error('[pronos/today] Erreur:', err.message);
@@ -214,7 +214,7 @@ router.get('/history', async (req, res) => {
   const cacheKey = 'history_v2';
   const mem = memGet(cacheKey);
   if (mem) {
-    res.set('X-GoalIQ-Data-Source', 'memory-cache');
+    res.set('X-GOLIAT-Data-Source', 'memory-cache');
     return res.json(mem);
   }
 
@@ -253,7 +253,7 @@ router.get('/history', async (req, res) => {
     };
 
     memSet(cacheKey, result, 600);
-    res.set('X-GoalIQ-Data-Source', 'local-json-cache');
+    res.set('X-GOLIAT-Data-Source', 'local-json-cache');
     res.json(result);
   } catch (err) {
     logger.error('[pronos/history] Erreur:', err.message);

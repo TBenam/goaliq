@@ -1,5 +1,5 @@
-/* ====================================================
-   GoalIQ — Groq Analyzer (v2)
+﻿/* ====================================================
+   GOLIAT — Groq Analyzer (v2)
    - Lit les matchs depuis le cache local (pas Firestore)
    - Génère les analyses avec Llama-3.3-70b
    - Sauvegarde les pronos en JSON local (cache/data/pronos.json)
@@ -21,7 +21,7 @@ function getGroqClient() {
   return groqClient;
 }
 
-const SYSTEM_PROMPT = `Tu es Jean-Marc, analyste sportif senior pour GoalIQ.
+const SYSTEM_PROMPT = `Tu es Jean-Marc, analyste sportif senior pour GOLIAT.
 Spécialiste des marchés de paris, tu analyses les matchs avec précision et sans biais.
 Ton audience : parieurs sérieux du marché francophone africain qui cherchent de la vraie valeur.
 Réponds UNIQUEMENT en JSON valide, sans markdown, sans backticks.`;
@@ -45,7 +45,7 @@ Buts encaissés/match domicile: ${match.home_goals_conceded}
 Buts marqués/match extérieur: ${match.away_goals_avg}
 Buts encaissés/match extérieur: ${match.away_goals_conceded}
 
-━━ SCORING ALGORITHMIQUE GoalIQ ━━
+━━ SCORING ALGORITHMIQUE GOLIAT ━━
 Score domicile (0-100): ${scoring.home_win_score}
 Probabilité Over 2.5: ${scoring.over25_prob}%
 Probabilité BTTS: ${scoring.btts_prob}%
@@ -234,7 +234,7 @@ async function notifySubscribers(total, freeCount) {
     if (!tokens.length) return;
 
     await sendPushToTokens(tokens, {
-      title: `🔥 GoalIQ — ${total} pronos du jour prêts !`,
+      title: `🔥 GOLIAT — ${total} pronos du jour prêts !`,
       body: `${freeCount} analyses disponibles maintenant. Ouvrez l'app !`
     }, { url: '/#pronos', type: 'new_pronos' });
 

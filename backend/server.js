@@ -1,5 +1,5 @@
-/* ====================================================
-   GoalIQ — Express Server
+﻿/* ====================================================
+   GOLIAT — Express Server
    Couche 3: API REST + CORS + Rate Limiting + Error handling
    ==================================================== */
 
@@ -33,7 +33,7 @@ const allowedOrigins = [
   'http://localhost:5500',
   'http://localhost:5173',
   'http://127.0.0.1:5500',
-  'https://goaliq.app',          // Production domain (to update)
+  'https://goliat.app',          // Production domain (to update)
   null                           // Allow file:// for local dev
 ].filter(Boolean);
 
@@ -92,7 +92,7 @@ app.use('/api/admin', adminRouter); // Panel admin activation VIP
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
-    service: 'GoalIQ API',
+    service: 'GOLIAT API',
     version: '1.0.0',
     uptime: Math.floor(process.uptime()),
     timestamp: new Date().toISOString(),
@@ -156,7 +156,7 @@ app.use((err, req, res, next) => {
 
 /* ── Start ───────────────────────────────────────────── */
 app.listen(PORT, () => {
-  logger.info(`[Server] GoalIQ API démarré sur http://localhost:${PORT}`);
+  logger.info(`[Server] GOLIAT API démarré sur http://localhost:${PORT}`);
   logger.info(`[Server] Mode: ${process.env.NODE_ENV || 'development'}`);
   logger.info(`[Server] Health: http://localhost:${PORT}/api/health`);
 

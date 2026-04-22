@@ -1,4 +1,4 @@
-import 'dotenv/config';
+﻿import 'dotenv/config';
 import { bootSchedulerProcess, getSchedulerStatus, startScheduler } from './pipeline.js';
 import { logger } from '../utils/logger.js';
 
@@ -6,7 +6,7 @@ const args = new Set(process.argv.slice(2));
 const runOnce = args.has('--once');
 const skipIfFresh = args.has('--skip-if-fresh');
 
-logger.info('[Scheduler] GoalIQ pipeline autonome');
+logger.info('[Scheduler] GOLIAT pipeline autonome');
 
 if (runOnce) {
   await bootSchedulerProcess({ runOnce: true, skipIfFresh });

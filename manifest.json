@@ -1,6 +1,6 @@
-{
-  "name": "GoalIQ – Pronostics Sport Premium",
-  "short_name": "GoalIQ",
+﻿{
+  "name": "GOLIAT – Pronostics Sport Premium",
+  "short_name": "GOLIAT",
   "description": "Pronostics sportifs premium orientés Afrique. Rejoignez le club des gagnants.",
   "start_url": "/index.html",
   "scope": "/",
@@ -50,7 +50,7 @@
       "sizes": "390x844",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "GoalIQ – Accueil Pronostics"
+      "label": "GOLIAT – Accueil Pronostics"
     }
   ]
 }

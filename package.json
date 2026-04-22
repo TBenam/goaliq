@@ -1,8 +1,8 @@
-{
-  "name": "goaliq-pwa-root",
+﻿{
+  "name": "goliat-pwa-root",
   "private": true,
   "version": "1.0.0",
-  "description": "Root helpers for GoalIQ PWA",
+  "description": "Root helpers for GOLIAT PWA",
   "scripts": {
     "api": "node backend/server.js",
     "scheduler": "node backend/jobs/scheduler.js",

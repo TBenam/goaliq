@@ -1,5 +1,5 @@
-/* ====================================================
-   GoalIQ — Data Collector (v2)
+﻿/* ====================================================
+   GOLIAT — Data Collector (v2)
    - Collecte les matchs depuis API-Football
    - Sauvegarde en cache JSON local (prioritaire)
    - Sauvegarde aussi dans Firestore si disponible
