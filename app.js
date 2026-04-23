@@ -1784,10 +1784,10 @@ const Enhancements = {
       index++;
     };
 
-    // First popup after 15s, then every 25-40s (randomized)
+    // First popup after 15s, then every 7 minutes
     setTimeout(() => {
       showNext();
-      STATE._gainPopupTimer = setInterval(showNext, 25000 + Math.random() * 15000);
+      STATE._gainPopupTimer = setInterval(showNext, 420000);
     }, 15000);
   },
 
@@ -1908,7 +1908,7 @@ const PWA = {
   },
 
   showInstallBanner() {
-    if (localStorage.getItem('goliat_install_dismissed') === 'true') return;
+    if (sessionStorage.getItem('goliat_install_dismissed') === 'true') return;
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
     if (isStandalone) return;
 
@@ -1925,7 +1925,7 @@ const PWA = {
       banner.classList.remove('show');
       setTimeout(() => banner.style.display = 'none', 400);
     }
-    localStorage.setItem('goliat_install_dismissed', 'true');
+    sessionStorage.setItem('goliat_install_dismissed', 'true');
     // iOS: show manual instructions
     if (PWA.isIOS()) {
       UI.showToast('📱 iOS : Appuyez sur Partager → "Sur l\'écran d\'accueil"', 5000);
@@ -1962,48 +1962,7 @@ const PWA = {
 
   // Simulate a "Late Value" local notification using real prono data when available
   scheduleLocalAlert() {
-    // Build dynamic alerts from real data if available
-    const dynamicAlerts = [];
-    const firstProno = DATA.pronos_gratuits[0];
-    const firstVip = DATA.pronos_vip[0];
-
-    if (firstProno) {
-      dynamicAlerts.push({
-        titre: `Cote en hausse — @${firstProno.cote}`,
-        sub: `${firstProno.match} · ${firstProno.categorie} · ${firstProno.heure}`
-      });
-    }
-    if (firstVip) {
-      dynamicAlerts.push({
-        titre: `🔥 Alerte VIP — @${firstVip.cote || '?.??'}`,
-        sub: `${firstVip.match} · ${firstVip.categorie} · Expiration bientôt`
-      });
-    }
-
-    // Generic fallbacks if no data yet
-    if (dynamicAlerts.length === 0) {
-      dynamicAlerts.push(
-        { titre: '🔥 Cote VIP en explosion !', sub: 'Un prono VIP vient d\'être publié — Agissez maintenant' },
-        { titre: 'Alerte Dernière Minute !', sub: 'Cotes en mouvement — Ne ratez pas cette opportunité' },
-        { titre: '🔥 La Montante VIP — En cours', sub: 'Les gains s\'accumulent — Rejoignez l\'élite' }
-      );
-    }
-
-    const alert = dynamicAlerts[Math.floor(Math.random() * dynamicAlerts.length)];
-
-    setTimeout(() => {
-      const banner = document.getElementById('late-value-alert');
-      if (banner && localStorage.getItem('goliat_alert_dismissed') !== 'true') {
-        banner.style.display = 'flex';
-        banner.querySelector('.alert-title').textContent = alert.titre;
-        banner.querySelector('.alert-sub').textContent = alert.sub;
-        banner.classList.add('show');
-        setTimeout(() => {
-          banner.classList.remove('show');
-          setTimeout(() => banner.style.display = 'none', 400);
-        }, 8000);
-      }
-    }, 6000);
+    // Alert functionality removed by user request
   }
 };
 
@@ -2027,7 +1986,7 @@ function bindEvents() {
 
   // GO VIP button
   const goVipBtn = document.getElementById('go-vip-btn');
-  if (goVipBtn) goVipBtn.addEventListener('click', Modal.open);
+  if (goVipBtn) goVipBtn.addEventListener('click', () => Router.navigate('vip'));
 
   // Modal backdrop close
   const backdrop = document.getElementById('modal-backdrop');
@@ -2037,28 +1996,6 @@ function bindEvents() {
   const modalClose = document.getElementById('modal-close-btn');
   if (modalClose) modalClose.addEventListener('click', Modal.close);
 
-  // Late value alert close
-  const alertClose = document.getElementById('alert-close-btn');
-  if (alertClose) alertClose.addEventListener('click', () => {
-    const banner = document.getElementById('late-value-alert');
-    if (banner) {
-      banner.classList.remove('show');
-      setTimeout(() => banner.style.display = 'none', 400);
-    }
-    localStorage.setItem('goliat_alert_dismissed', 'true');
-  });
-
-  // Alert CTA
-  const alertCta = document.getElementById('alert-cta-btn');
-  if (alertCta) alertCta.addEventListener('click', (e) => {
-    e.preventDefault();
-    const banner = document.getElementById('late-value-alert');
-    if (banner) {
-      banner.classList.remove('show');
-      setTimeout(() => banner.style.display = 'none', 400);
-    }
-    Modal.open();
-  });
 
   // Keyboard: close modal on Escape
   document.addEventListener('keydown', (e) => {
