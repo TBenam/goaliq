@@ -523,25 +523,23 @@ input, textarea, select { font-family: var(--font); }
 /* ---- Install Banner ---- */
 #install-banner {
   position: fixed;
-  top: 108px;
-  bottom: auto;
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
   left: 50%;
   right: auto;
   margin: 0;
   max-width: min(440px, calc(100vw - 24px));
   width: min(calc(100vw - 24px), calc(var(--app-shell-width) - 24px));
-  background: white;
-  color: var(--on-surface);
-  border: 2px solid var(--primary-container);
+  background: var(--on-surface);
+  color: var(--surface);
   border-radius: var(--radius-xl);
   padding: 14px 18px;
   display: flex;
   align-items: center;
   gap: 12px;
-  z-index: 550;
-  box-shadow: 0 16px 48px rgba(0,108,73,0.2);
-  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.4s ease;
-  transform: translateX(-50%) translateY(-120%);
+  z-index: 190;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.3);
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease;
+  transform: translateX(-50%) translateY(120%);
   opacity: 0;
   pointer-events: none;
 }
@@ -553,8 +551,8 @@ input, textarea, select { font-family: var(--font); }
 .install-icon { width: 44px; height: 44px; border-radius: 10px; flex-shrink: 0; overflow: hidden; }
 .install-icon img { width: 100%; height: 100%; object-fit: cover; }
 .install-body { flex: 1; }
-.install-title { font-weight: 900; font-size: 0.85rem; color: var(--on-surface); line-height:1.2; }
-.install-sub { font-size: 0.72rem; color: var(--on-surface-variant); margin-top: 2px; }
+.install-title { font-weight: 800; font-size: 0.85rem; color: var(--surface); }
+.install-sub { font-size: 0.72rem; color: rgba(248, 249, 250, 0.6); margin-top: 2px; }
 .install-btn {
   background: var(--gradient-primary);
   color: white;
@@ -565,7 +563,7 @@ input, textarea, select { font-family: var(--font); }
   white-space: nowrap;
   text-transform: uppercase;
 }
-.install-close { color: var(--outline); font-size: 1.1rem; padding: 4px; cursor: pointer; }
+.install-close { color: rgba(248, 249, 250, 0.5); font-size: 1.1rem; padding: 4px; cursor: pointer; }
 
 /* ---- VIP Modal ---- */
 #vip-modal {
@@ -1077,22 +1075,20 @@ input, textarea, select { font-family: var(--font); }
 /* ---- Social Proof Popup (Gain Notification) ---- */
 .gain-popup {
   position: fixed;
-  top: 108px;
-  bottom: auto;
+  bottom: calc(170px + env(safe-area-inset-bottom, 0px));
   left: 50%;
-  transform: translateX(-50%) translateY(-40px) scale(0.9);
-  max-width: min(340px, calc(100vw - 32px));
-  width: max-content;
-  background: white;
-  color: var(--on-surface);
-  border: 1px solid var(--surface-container-high);
-  border-radius: var(--radius-full);
-  padding: 6px 14px 6px 6px;
+  transform: translateX(-50%) translateY(40px) scale(0.9);
+  max-width: min(380px, calc(100vw - 32px));
+  width: 100%;
+  background: #0f3323;
+  color: white;
+  border-radius: var(--radius-xl);
+  padding: 14px 18px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   z-index: 180;
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
   opacity: 0;
   pointer-events: none;
   transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
@@ -1117,18 +1113,18 @@ input, textarea, select { font-family: var(--font); }
 .gain-popup .gain-body { flex: 1; }
 .gain-popup .gain-name {
   font-weight: 800;
-  font-size: 0.75rem;
-  margin-bottom: 0px;
+  font-size: 0.82rem;
+  margin-bottom: 2px;
 }
 .gain-popup .gain-amount {
   font-weight: 900;
-  font-size: 0.82rem;
-  color: var(--primary);
+  font-size: 1rem;
+  color: var(--primary-fixed);
 }
 .gain-popup .gain-action {
   font-size: 0.7rem;
-  color: var(--on-surface-variant);
-  margin-left: 4px;
+  color: rgba(255,255,255,0.6);
+  margin-top: 1px;
 }
 
 /* ---- Testimonial Carousel ---- */

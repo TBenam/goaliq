@@ -34,7 +34,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=block" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
 
   <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
@@ -78,6 +78,16 @@
     <span class="splash-sub">Pronostics Premium</span>
   </div>
 
+  <!-- Late Value Alert (floats from top) -->
+  <div id="late-value-alert" class="swipe-dismiss" role="alert" aria-live="assertive">
+    <span class="alert-icon">🔥</span>
+    <div class="alert-body">
+      <div class="alert-title">Cote VIP en mouvement !</div>
+      <div class="alert-sub">Alertes en temps réel pour les membres</div>
+    </div>
+    <a id="alert-cta-btn" href="#vip" class="alert-cta">Voir</a>
+    <button class="alert-close" id="alert-close-btn" aria-label="Fermer">✕</button>
+  </div>
 
   <!-- Install Banner (shows install prompt) -->
   <div id="install-banner" class="swipe-dismiss" role="complementary" aria-label="Installer l'application">
