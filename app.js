@@ -1418,7 +1418,7 @@ const Views = {
         </div>
         <div id="vip-pronos-list">
           ${DATA.pronos_vip.length > 0
-            ? DATA.pronos_vip.map(p => C.matchCardLocked(p)).join('')
+            ? DATA.pronos_vip.map(p => STATE.isVip ? C.matchCard(p) : C.matchCardLocked(p)).join('')
             : `<div style="position:relative;min-height:130px;background:var(--surface-container-highest);border-radius:var(--radius-xl);overflow:hidden;">
                 <div style="position:absolute;inset:0;padding:14px;display:flex;flex-direction:column;justify-content:center;align-items:center;filter:blur(3px);pointer-events:none;">
                   <div style="background:rgba(255,255,255,0.2);width:70%;height:14px;border-radius:8px;margin-bottom:10px;"></div>
@@ -1591,16 +1591,91 @@ const Views = {
 
   /* ---- VIP ---- */
   vip() {
+    if (STATE.isVip) {
+      return `
+        <div class="view px-4 py-4">
+          <header style="text-align:center;margin-bottom:24px;">
+             <div style="display:inline-block;padding:4px 14px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.2);border-radius:var(--radius-full);margin-bottom:8px;">
+              <span style="font-size:0.65rem;font-weight:800;text-transform:uppercase;letter-spacing:0.2em;color:var(--primary);">ACCÈS VIP ACTIF</span>
+            </div>
+            <h1 style="font-size:2rem;font-weight:900;letter-spacing:-0.05em;line-height:1.1;">L'Élite Goliat</h1>
+            <p style="font-size:0.85rem;color:var(--on-surface-variant);margin-top:6px;">Retrouvez ici tous les bons coups détectés par notre IA.</p>
+          </header>
+
+          <section class="mb-6">
+            <div class="section-header" style="margin-bottom:16px;">
+              <h2 class="section-title">Pronostics VIP du jour</h2>
+              <span class="badge badge-primary">${(DATA.pronos_vip || []).length} Matchs</span>
+            </div>
+
+            <div style="display:grid;gap:16px;">
+              ${(DATA.pronos_vip || []).length > 0
+          ? DATA.pronos_vip.map(p => C.matchCard(p)).join('')
+          : '<div class="admin-empty">Aucun match VIP pour le moment. Revenez plus tard !</div>'
+        }
+            </div>
+          </section>
+
+          <section class="mb-6">
+            <div class="section-header" style="margin-bottom:14px;">
+              <h2 class="section-title">Coupons Combinés IA</h2>
+            </div>
+            <div class="coupons-container" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(280px, 1fr));gap:16px;">
+              ${(DATA.coupons || []).length ? DATA.coupons.map(coupon => `
+                <div class="card-elevated" style="padding:16px;border-left:4px solid ${coupon.type === 'Duo Safe' ? 'var(--primary)' : 'var(--secondary)'};">
+                  <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
+                    <span style="font-weight:900;font-size:0.9rem;color:var(--on-surface);">${coupon.type}</span>
+                    <span class="badge badge-primary">@${coupon.totalOdds}</span>
+                  </div>
+                  <div style="font-size:0.8rem;color:var(--on-surface-variant);display:flex;flex-direction:column;gap:8px;">
+                    ${coupon.matches.map(m => `
+                      <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--surface-container);padding-bottom:4px;">
+                        <span style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${m.match}</span>
+                        <strong style="color:var(--primary);">${m.prono}</strong>
+                      </div>
+                    `).join('')}
+                  </div>
+                  <button class="btn-ghost" style="width:100%;margin-top:12px;justify-content:center;" onclick="UI.shareTicket('Combiné ${coupon.type}','${coupon.matches.map(m => m.match + ': ' + m.prono).join(' | ')}','${coupon.totalOdds}')">
+                    <span class="material-symbols-outlined icon-sm">content_copy</span> COPIER LE COUPON
+                  </button>
+                </div>
+              `).join('') : '<div class="admin-empty">Génération des coupons en cours...</div>'}
+            </div>
+          </section>
+
+          <div style="background:var(--surface-container-lowest);border-radius:var(--radius-xl);padding:20px;text-align:center;border:1.5px dashed var(--outline-variant);">
+            <p style="font-size:0.8rem;color:var(--outline);margin-bottom:12px;">Des questions sur un match ? Besoin d'aide ?</p>
+            <a href="https://wa.me/${WA_NUMBER}" target="_blank" class="btn-secondary" style="width:100%;justify-content:center;">
+              <span class="material-symbols-outlined icon-sm">support_agent</span> CONTACTER UN ANALYSTE
+            </a>
+          </div>
+        </div>
+      `;
+    }
+
+    // Vue NON-VIP (Marketing + Activation)
     return `
       <div class="view px-4 py-4">
-
-        <!-- Hero VIP -->
-        <section style="text-align:center;margin-bottom:28px;">
+        <header style="text-align:center;margin-bottom:28px;">
           <div style="display:inline-block;padding:4px 14px;background:rgba(254,166,25,0.1);border:1px solid rgba(254,166,25,0.2);border-radius:var(--radius-full);margin-bottom:12px;">
             <span style="font-size:0.65rem;font-weight:800;text-transform:uppercase;letter-spacing:0.2em;color:var(--secondary);">Club Privé</span>
           </div>
-          <h1 style="font-size:2.2rem;font-weight:900;letter-spacing:-0.06em;line-height:1.1;margin-bottom:10px;">LE CLUB DES<br>GAGNANTS</h1>
-          <p style="font-size:0.9rem;color:var(--on-surface-variant);font-weight:500;line-height:1.6;max-width:300px;margin:0 auto;">Ne laissez plus l'argent sur la table des bookmakers. Accédez à l'excellence.</p>
+          <h1 style="font-size:2.2rem;font-weight:900;letter-spacing:-0.06em;line-height:1.1;margin-bottom:10px;">REJOINDRE<br>L'ÉLITE</h1>
+          <p style="font-size:0.9rem;color:var(--on-surface-variant);font-weight:500;line-height:1.6;max-width:300px;margin:0 auto;">Accédez aux meilleurs pronos du monde entier sélectionnés par notre IA.</p>
+        </header>
+
+        <!-- Activation Zone (Direct access for those who paid) -->
+        <section class="card-elevated mb-6" style="padding:20px; border:2px solid var(--primary-container); background:rgba(16,185,129,0.05);">
+          <h2 style="font-size:1.1rem;font-weight:900;margin-bottom:8px;">Déjà membre ?</h2>
+          <p style="font-size:0.82rem;color:var(--on-surface-variant);margin-bottom:16px;">Si vous avez déjà payé via WhatsApp, activez votre accès immédiatement.</p>
+          <div style="display:grid; gap:10px;">
+             <button class="btn-primary" style="width:100%;justify-content:center;padding:14px;" onclick="Modal.checkActivation()">
+              <span class="material-symbols-outlined">lock_open</span> VÉRIFIER MON ACTIVATION
+            </button>
+            <button class="btn-ghost" style="width:100%;justify-content:center;font-size:0.75rem;" onclick="Modal.open()">
+              Comment ça marche ?
+            </button>
+          </div>
         </section>
 
         <!-- Stats proof -->
@@ -1609,132 +1684,40 @@ const Views = {
             <div class="stat-label">Taux réussite</div>
             <div class="stat-value primary">84%</div>
           </div>
-          <div class="stat-card" style="background:rgba(0,108,73,0.06);border:1px solid rgba(0,108,73,0.1);">
-            <div class="stat-label">Membres actifs</div>
-            <div class="stat-value primary">2 847</div>
-          </div>
           <div class="stat-card" style="background:rgba(254,166,25,0.08);border:1px solid rgba(254,166,25,0.2);">
-            <div class="stat-label">Cote moy.</div>
-            <div class="stat-value gold">@4.50</div>
+            <div class="stat-label">Cotes VIP</div>
+            <div class="stat-value gold">@1.80 - @15.0</div>
           </div>
         </div>
 
-        ${buildVerifiedRecordPanel()}
-        ${STATE.isVip ? buildVipPersonalDashboard() : ''}
-        
-        <!-- Coupons Combinés IA -->
-        <section class="vip-tool-section mb-6">
-          <div class="section-header" style="margin-bottom:14px;">
-            <h2 class="section-title">Coupons Combinés IA</h2>
-            <span class="badge badge-gold">NEW</span>
-          </div>
-          <div class="coupons-container" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(280px, 1fr));gap:16px;">
-            ${(DATA.coupons || []).length ? DATA.coupons.map(coupon => `
-              <div class="card-elevated" style="padding:16px;border-left:4px solid ${coupon.type === 'Duo Safe' ? 'var(--primary)' : 'var(--secondary)'};">
-                <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
-                  <span style="font-weight:900;font-size:0.9rem;color:var(--on-surface);">${coupon.type}</span>
-                  <span class="badge badge-primary">@${coupon.totalOdds}</span>
-                </div>
-                <div style="font-size:0.8rem;color:var(--on-surface-variant);display:flex;flex-direction:column;gap:8px;">
-                  ${coupon.matches.map(m => `
-                    <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--surface-container);padding-bottom:4px;">
-                      <span style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${m.match}</span>
-                      <strong style="color:var(--primary);">${m.prono}</strong>
-                    </div>
-                  `).join('')}
-                </div>
-                <button class="btn-ghost" style="width:100%;margin-top:12px;justify-content:center;" onclick="UI.shareTicket('Combiné ${coupon.type}','${coupon.matches.map(m => m.match + ': ' + m.prono).join(' | ')}','${coupon.totalOdds}')">
-                  <span class="material-symbols-outlined icon-sm">content_copy</span> COPIER LE COUPON
-                </button>
-              </div>
-            `).join('') : `
-              <div class="admin-empty" style="grid-column: 1 / -1;">
-                Génération des coupons IA en cours... Revenez dans quelques instants.
-              </div>
-            `}
-          </div>
-        </section>
-
-        ${buildResponsibleBettingPanel()}
-
-        <!-- Social Proof quote -->
-        <div style="background:rgba(0,108,73,0.04);border-radius:var(--radius-xl);border:1px solid rgba(0,108,73,0.1);padding:20px;margin-bottom:24px;">
-          <div style="display:flex;gap:3px;margin-bottom:10px;color:var(--secondary-container);">★★★★★</div>
-          <blockquote style="font-size:1rem;font-weight:700;font-style:italic;color:var(--on-surface);line-height:1.6;margin-bottom:10px;">
-            "30 000 FCFA → 1 500 000 FCFA en 7 jours. C'est le pouvoir du VIP."
-          </blockquote>
-          <div style="font-size:0.78rem;font-weight:700;color:var(--primary);">— Mamadou K., Membre Elite 🇸🇳</div>
-        </div>
-
-        <!-- Features VIP -->
-        <div class="mb-6">
-          <h2 style="font-size:1.2rem;font-weight:900;letter-spacing:-0.03em;margin-bottom:16px;">Ce qu'inclut le VIP</h2>
-          <div style="background:var(--surface-container-lowest);border-radius:var(--radius-xl);padding:4px 16px;box-shadow:var(--shadow-sm);">
+        <section class="mb-8">
+          <h2 style="font-size:1.2rem;font-weight:900;margin-bottom:16px;">Pourquoi passer VIP ?</h2>
+          <div style="display:grid; gap:12px;">
             ${[
-        { icon: 'trending_up', titre: 'Cotes > 1.80 garanties', desc: 'Rentabilité maximale sur chaque ticket sélectionné par notre IA.' },
-        { icon: 'sports_soccer', titre: 'Scores Exacts VIP', desc: 'Analyses exclusives sur les scores à haute probabilité. ROI exceptionnel.' },
-        { icon: 'bolt', titre: 'Accès prioritaire +2h', desc: 'Recevez les pronos 2h avant le public. Securisez les meilleures cotes.' },
-        { icon: 'show_chart', titre: 'La Montante 10K→100K', desc: 'Notre méthode exclusive pour multiplier votre mise par 10 en 7 jours.' },
-        { icon: 'insights', titre: 'Analyses Pro Tactiques', desc: 'Décryptage tactique avant chaque rencontre. Blessés, forme, météo.' },
-        { icon: 'support_agent', titre: 'Support WhatsApp 24/7', desc: 'Ligne directe avec nos analystes. Réponse garantie en moins d\'1h.' }
+        { icon: 'public', title: 'Tous les championnats', desc: 'Du Brésil à la Chine, aucune value ne nous échappe.' },
+        { icon: 'bolt', title: 'Alertes Immédiates', desc: 'Recevez les pronos avant tout le monde par notification.' },
+        { icon: 'military_tech', title: 'La Montante VIP', desc: 'Notre stratégie pour transformer 10K en 100K.' }
       ].map(f => `
-              <div class="vip-feature-row">
-                <div class="vip-feature-icon">
-                  <span class="material-symbols-outlined icon-filled">${f.icon}</span>
+              <div style="display:flex;gap:16px;align-items:center;padding:12px;background:var(--surface-container-lowest);border-radius:16px;">
+                <div style="width:44px;height:44px;border-radius:12px;background:rgba(0,108,73,0.1);display:flex;align-items:center;justify-content:center;color:var(--primary);">
+                  <span class="material-symbols-outlined">${f.icon}</span>
                 </div>
                 <div>
-                  <div class="vip-feature-title">${f.titre}</div>
-                  <div class="vip-feature-desc">${f.desc}</div>
+                  <div style="font-weight:800;font-size:0.9rem;">${f.title}</div>
+                  <div style="font-size:0.75rem;color:var(--outline);">${f.desc}</div>
                 </div>
               </div>
             `).join('')}
           </div>
-        </div>
+        </section>
 
-        <!-- Pricing CTA -->
-        <div style="text-align:center;margin-bottom:20px;">
-          <button class="btn-secondary" style="width:100%;justify-content:center;font-size:1rem;padding:18px;" onclick="Modal.open()">
-            👑 CHOISIR MON PLAN VIP
-          </button>
-          <p style="font-size:0.72rem;color:var(--outline);margin-top:8px;">Résiliation possible à tout moment · Paiement sécurisé</p>
-        </div>
-
-        <!-- Testimonials Carousel -->
-        <div class="section-header mb-4">
-          <h2 class="section-title">Ils ont rejoint l'Élite</h2>
-        </div>
-        <div class="mb-6">
-          ${C.testimonialCarousel(DATA.temoignages)}
-        </div>
-
-        <!-- FAQ -->
-        <div class="mb-6">
-          <h2 style="font-size:1.1rem;font-weight:900;margin-bottom:16px;">Questions fréquentes</h2>
-          ${[
-        { q: 'Comment fonctionne le paiement ?', r: 'Nous acceptons Orange Money, MTN Mobile Money, Wave, et Moov. Après paiement, vous recevez un accès immédiat par WhatsApp sous 5 minutes.' },
-        { q: 'Puis-je annuler ?', r: 'Oui, à tout moment. L\'abonnement ne se renouvelle pas automatiquement. Vous gérez votre renouvellement vous-même.' },
-        { q: 'Les pronos sont-ils vraiment rentables ?', r: 'Notre taux de réussite est de 84% sur les 30 derniers jours (audité). Le ROI est de +14.2 unités. Les résultats passés ne garantissent pas les résultats futurs.' },
-        { q: 'Comment accéder aux pronos VIP ?', r: 'Après paiement, vous rejoignez notre groupe Telegram Privé où les pronos sont publiés. Vous recevez aussi des notifications push sur l\'application.' }
-      ].map(f => `
-            <div style="border-bottom:1px solid var(--surface-container);padding:14px 0;">
-              <div style="font-weight:800;font-size:0.88rem;margin-bottom:6px;color:var(--on-surface);">${f.q}</div>
-              <div style="font-size:0.78rem;color:var(--on-surface-variant);line-height:1.6;">${f.r}</div>
-            </div>
-          `).join('')}
-        </div>
-
-        <!-- Final CTA -->
-        <div style="background:#0f3323;border-radius:var(--radius-2xl);padding:28px;text-align:center;position:relative;overflow:hidden;">
-          <div style="position:absolute;top:-30px;right:-30px;width:120px;height:120px;background:rgba(16,185,129,0.15);border-radius:50%;filter:blur(30px);"></div>
-          <div style="position:relative;z-index:1;">
-            <h2 style="color:white;font-size:1.5rem;font-weight:900;letter-spacing:-0.04em;font-style:italic;margin-bottom:8px;">PRÊT À CHANGER DE DIMENSION ?</h2>
-            <p style="color:rgba(255,255,255,0.7);font-size:0.82rem;margin-bottom:20px;">Rejoignez 2 847 membres qui gagnent chaque jour.</p>
-            <button class="btn-secondary" style="width:100%;justify-content:center;" onclick="Modal.open()">
-              REJOINDRE L'ÉLITE MAINTENANT
-            </button>
-          </div>
-        </div>
-
+        <button class="btn-secondary" style="width:100%;justify-content:center;padding:18px;font-size:1.1rem;" onclick="Modal.open()">
+          👑 VOIR LES TARIFS VIP
+        </button>
+        
+        <p style="text-align:center;font-size:0.72rem;color:var(--outline);margin-top:12px;">
+          Plus de 2 800 parieurs nous font confiance.
+        </p>
       </div>`;
   },
 

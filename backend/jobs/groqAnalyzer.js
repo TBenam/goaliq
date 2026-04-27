@@ -25,7 +25,7 @@ function getGroqClient() {
 
 // ── Maximum free pronos ──────────────────────────────
 const MAX_FREE_PRONOS = 4;
-const DEFAULT_MAX_GROQ_MATCHES = 6;
+const DEFAULT_MAX_GROQ_MATCHES = 35; // Increased from 6 to support 15-20 VIP matches
 
 function getGroqMatchLimit() {
   const parsed = Number.parseInt(process.env.GROQ_MAX_MATCHES_PER_RUN || `${DEFAULT_MAX_GROQ_MATCHES}`, 10);

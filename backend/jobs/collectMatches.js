@@ -44,6 +44,19 @@ const LEAGUE_SCORES = {
   73: 65,   // Copa do Brasil
   253: 60,  // MLS
   848: 75,  // Conference League
+  144: 60,  // J-League (Japan)
+  218: 60,  // K-League (South Korea)
+  103: 60,  // Indian Super League
+  383: 55,  // South African PSL
+  307: 55,  // UAE Pro League
+  1: 100,   // World Cup
+  4: 100,   // Euro
+  9: 100,   // Copa America
+  13: 80,   // Copa Libertadores
+  34: 65,   // Liga Profesional Argentina
+  11: 65,   // AFC Champions League
+  71: 60,   // Serie A Brazil
+  113: 60,  // Liga MX Mexico
 };
 
 const CURRENT_SEASON = new Date().getUTCFullYear();
@@ -407,7 +420,7 @@ export async function fetchMatches() {
       return score > 0 && ['NS', 'TBD'].includes(status);
     })
     .sort((a, b) => getLeagueScore(b.league.id) - getLeagueScore(a.league.id))
-    .slice(0, 15); // Max 15 matchs par cycle
+    .slice(0, 50); // Increased from 15 to allow for the requested 15-20 VIP matches
 
   logger.info(`[Collector] ${eligibleFixtures.length} matchs éligibles (ligues prioritaires, pas encore commencés)`);
 

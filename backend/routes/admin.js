@@ -15,6 +15,8 @@ import { cacheRead, cacheWrite } from '../cache/manager.js';
 import { getCrmOverview, logSubscriptionTransaction } from '../db/localDb.js';
 import { runFullPipeline } from '../jobs/pipeline.js';
 import { logger } from '../utils/logger.js';
+import { db } from '../firebase/admin.js';
+import admin from 'firebase-admin';
 
 const router = Router();
 
@@ -167,6 +169,25 @@ router.post('/activate', (req, res) => {
   };
 
   saveCodes(codes);
+
+  // --- SYNC WITH FIRESTORE ---
+  try {
+    const firestoreExpiry = expires_at ? admin.firestore.Timestamp.fromMillis(expires_at) : null;
+    await db.collection('vip_codes').doc(cleanCode).set({
+      code: cleanCode,
+      plan: plan,
+      used: false,
+      used_by: null,
+      created_at: admin.firestore.FieldValue.serverTimestamp(),
+      expires_at: firestoreExpiry,
+      phone: phone || null,
+      activated_by: 'admin_crm'
+    });
+    logger.info(`[Admin] 🔄 Code ${cleanCode} synchronisé avec Firestore`);
+  } catch (fsErr) {
+    logger.error(`[Admin] ❌ Erreur synchro Firestore: ${fsErr.message}`);
+    // On ne bloque pas la réponse car le cache local est OK pour le polling immédiat
+  }
 
   logSubscriptionTransaction({
     code: cleanCode,
