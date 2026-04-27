@@ -570,6 +570,7 @@ function mapPronoForUi(prono = {}, options = {}) {
     categorie: prono.categorie || (locked ? 'VIP' : 'Pronostic'),
     description: prono.description || prono.analyse_courte || '',
     analyse_vip: prono.analyse_vip || '',
+    is_offered_free: Boolean(prono.is_offered_free),
     locked
   };
 }
@@ -1111,6 +1112,7 @@ const C = {
       <div class="match-card mb-4">
         <div class="match-header">
           <span class="badge badge-primary">${prono.competition}</span>
+          ${prono.is_offered_free ? '<span class="badge badge-gold" style="margin-left:6px;animation:pulse-badge 2s infinite;">🎁 VIP OFFERT</span>' : ''}
           <div class="match-time-stack">
             ${liveStatus ? `<span class="live-badge">${liveStatus}</span>` : ''}
             ${countdownHtml}
@@ -1153,6 +1155,7 @@ const C = {
 
   // VIP locked match card
   matchCardLocked(prono) {
+    if (prono.is_offered_free) return C.matchCard(prono);
     const { home, away } = splitMatchLabel(prono.match);
     return `
       <div class="match-card mb-4" style="position:relative;min-height:130px;overflow:hidden;">
@@ -1618,6 +1621,40 @@ const Views = {
 
         ${buildVerifiedRecordPanel()}
         ${STATE.isVip ? buildVipPersonalDashboard() : ''}
+        
+        <!-- Coupons Combinés IA -->
+        <section class="vip-tool-section mb-6">
+          <div class="section-header" style="margin-bottom:14px;">
+            <h2 class="section-title">Coupons Combinés IA</h2>
+            <span class="badge badge-gold">NEW</span>
+          </div>
+          <div class="coupons-container" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(280px, 1fr));gap:16px;">
+            ${(DATA.coupons || []).length ? DATA.coupons.map(coupon => `
+              <div class="card-elevated" style="padding:16px;border-left:4px solid ${coupon.type === 'Duo Safe' ? 'var(--primary)' : 'var(--secondary)'};">
+                <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
+                  <span style="font-weight:900;font-size:0.9rem;color:var(--on-surface);">${coupon.type}</span>
+                  <span class="badge badge-primary">@${coupon.totalOdds}</span>
+                </div>
+                <div style="font-size:0.8rem;color:var(--on-surface-variant);display:flex;flex-direction:column;gap:8px;">
+                  ${coupon.matches.map(m => `
+                    <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--surface-container);padding-bottom:4px;">
+                      <span style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${m.match}</span>
+                      <strong style="color:var(--primary);">${m.prono}</strong>
+                    </div>
+                  `).join('')}
+                </div>
+                <button class="btn-ghost" style="width:100%;margin-top:12px;justify-content:center;" onclick="UI.shareTicket('Combiné ${coupon.type}','${coupon.matches.map(m => m.match + ': ' + m.prono).join(' | ')}','${coupon.totalOdds}')">
+                  <span class="material-symbols-outlined icon-sm">content_copy</span> COPIER LE COUPON
+                </button>
+              </div>
+            `).join('') : `
+              <div class="admin-empty" style="grid-column: 1 / -1;">
+                Génération des coupons IA en cours... Revenez dans quelques instants.
+              </div>
+            `}
+          </div>
+        </section>
+
         ${buildResponsibleBettingPanel()}
 
         <!-- Social Proof quote -->

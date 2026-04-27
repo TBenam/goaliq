@@ -529,24 +529,39 @@ export function scoreMatch(match) {
   const pricedMarkets = markets
     .map(m => enrichMarketWithPricing(m, realOdds))
     .sort((a, b) => {
-      const aEdge = a.valueEdge ?? 0;
-      const bEdge = b.valueEdge ?? 0;
-      const aValueRank = a.valueLabel === 'bad_price' ? -20 : aEdge;
-      const bValueRank = b.valueLabel === 'bad_price' ? -20 : bEdge;
-      if (bValueRank !== aValueRank) return bValueRank - aValueRank;
-      return b.prob - a.prob;
+      // Priority 1: Smart Money / Strong Value
+      const aVal = a.valueLabel === 'strong_value' ? 10 : 0;
+      const bVal = b.valueLabel === 'strong_value' ? 10 : 0;
+      if (aVal !== bVal) return bVal - aVal;
+
+      // Priority 2: Avoid bad prices
+      const aBad = a.valueLabel === 'bad_price' ? -10 : 0;
+      const bBad = b.valueLabel === 'bad_price' ? -10 : 0;
+      if (aBad !== bBad) return bBad - aBad;
+
+      // Priority 3: Balanced probability vs Odds (Value)
+      // We want high prob but also attractive odds.
+      const aScore = a.prob * (a.bookmakerOdd || a.estimatedOdds);
+      const bScore = b.prob * (b.bookmakerOdd || b.estimatedOdds);
+      return bScore - aScore;
     });
 
   // Sort by probability descending for legacy consumers.
   markets.sort((a, b) => b.prob - a.prob);
 
   // ── 8. Best Market Selection ──────────────────────
-  // Pick the market with the highest probability that also has reasonable odds (>= 1.30)
-  const bestMarket = pricedMarkets.find(m =>
-    m.estimatedOdds >= 1.30 &&
-    m.valueLabel !== 'bad_price' &&
-    (m.valueEdge === null || m.valueEdge >= -6)
-  ) || pricedMarkets.find(m => m.estimatedOdds >= 1.30) || pricedMarkets[0] || null;
+  // Favor Straight Wins (1 or 2) over Double Chance if probability is solid (>52%)
+  // or if the odds are much more attractive (>1.65)
+  const bestMarket = pricedMarkets.find(m => {
+    const isStraight = ['home_win', 'away_win'].includes(m.type);
+    const isDC = m.type.startsWith('double_chance');
+    const odds = m.bookmakerOdd || m.estimatedOdds;
+
+    if (isStraight && m.prob >= 52) return true;
+    if (isStraight && odds >= 1.75 && m.prob >= 48) return true;
+    if (!isDC && m.prob >= 55) return true; // Over/Under/BTTS
+    return false;
+  }) || pricedMarkets.find(m => (m.bookmakerOdd || m.estimatedOdds) >= 1.30) || pricedMarkets[0] || null;
 
   // ── 9. Compute Confidence Level ───────────────────
   let confidenceScore = 0;
@@ -594,9 +609,9 @@ export function scoreMatch(match) {
   const qualityGate = {
     passed: false,
     reason: '',
-    minConfidence: 40,
-    minProb: 48,
-    minDataQuality: 38
+    minConfidence: 35, // Reduced from 40 to allow more "alluring" picks
+    minProb: 44,       // Reduced from 48 to allow "Value" / "Grosse Cote"
+    minDataQuality: 35  // Reduced from 38
   };
 
   const needsClearWinner = ['home_win', 'away_win'].includes(bestMarket?.type);
@@ -704,21 +719,77 @@ export function scoreMatch(match) {
 
 /**
  * Rank matches by analysis quality — best first.
- * Used to select which matches deserve a prono.
  */
 export function rankMatchesByQuality(matches) {
   return matches
     .map(m => ({ match: m, scoring: scoreMatch(m) }))
     .filter(({ scoring }) => scoring.qualityGate.passed)
     .sort((a, b) => {
+      // Primary: AI Priority Score
       if (b.scoring.aiPriorityScore !== a.scoring.aiPriorityScore) {
         return b.scoring.aiPriorityScore - a.scoring.aiPriorityScore;
       }
-      // Primary: confidence score
-      if (b.scoring.confidenceScore !== a.scoring.confidenceScore) {
-        return b.scoring.confidenceScore - a.scoring.confidenceScore;
-      }
-      // Secondary: best market probability
-      return (b.scoring.bestMarket?.prob || 0) - (a.scoring.bestMarket?.prob || 0);
+      return b.scoring.confidenceScore - a.scoring.confidenceScore;
     });
+}
+
+/**
+ * Generate combined coupons from a list of pronos.
+ * Focus on "Safe" matches to reach 70-80% success.
+ */
+export function generateCoupons(pronos) {
+  if (pronos.length < 2) return [];
+
+  const coupons = [];
+  
+  // Sort by probability to find the safest ones
+  const safePicks = [...pronos]
+    .filter(p => !['Score Exact', 'Grosse Cote'].includes(p.categorie))
+    .sort((a, b) => (b.fiabilite || 0) - (a.fiabilite || 0));
+
+  // Coupon 1: "Le Duo Safe" (2 matches, cote ~2.00)
+  if (safePicks.length >= 2) {
+    const p1 = safePicks[0];
+    const p2 = safePicks[1];
+    const totalOdds = Math.round((p1.cote * p2.cote) * 100) / 100;
+    
+    coupons.push({
+      id: `coupon_${Date.now()}_1`,
+      title: "Le Duo GOLIAT 💎",
+      description: "Notre sélection la plus fiable pour doubler votre mise.",
+      type: 'combiné',
+      matches: [
+        { match: p1.match, prono: p1.prono, cote: p1.cote },
+        { match: p2.match, prono: p2.prono, cote: p2.cote }
+      ],
+      totalOdds,
+      fiabilite: Math.round((p1.fiabilite + p2.fiabilite) / 2 * 0.9), // Slightly lower fiabilite for combined
+      is_vip: true
+    });
+  }
+
+  // Coupon 2: "Le Triple Fun" (3 matches, cote ~4.00-6.00)
+  if (safePicks.length >= 3) {
+    const p1 = safePicks[0];
+    const p2 = safePicks[2];
+    const p3 = safePicks[Math.min(safePicks.length - 1, 4)];
+    const totalOdds = Math.round((p1.cote * p2.cote * p3.cote) * 100) / 100;
+
+    coupons.push({
+      id: `coupon_${Date.now()}_2`,
+      title: "Le Triple de l'Expert ⚡",
+      description: "Une combinaison optimisée pour un gain maximum.",
+      type: 'combiné',
+      matches: [
+        { match: p1.match, prono: p1.prono, cote: p1.cote },
+        { match: p2.match, prono: p2.prono, cote: p2.cote },
+        { match: p3.match, prono: p3.prono, cote: p3.cote }
+      ],
+      totalOdds,
+      fiabilite: Math.round((p1.fiabilite + p2.fiabilite + p3.fiabilite) / 3 * 0.8),
+      is_vip: true
+    });
+  }
+
+  return coupons;
 }

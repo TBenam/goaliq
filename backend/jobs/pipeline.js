@@ -12,6 +12,7 @@ let schedulerStarted = false;
 let pipelineTask = null;
 let resultsTask = null;
 let promoTask = null;
+let offeredPronoTask = null;
 
 function getPromoCron() {
   return process.env.PROMO_VIP_CRON || '0 17 * * *'; // Everyday at 17:00 by default
@@ -130,6 +131,47 @@ export async function sendPromoNotification() {
   }
 }
 
+export async function sendRandomVipPronoNotification() {
+  try {
+    const { cacheGet } = await import('../cache/manager.js');
+    const pronoCache = cacheGet('pronos', 24);
+    const pronos = pronoCache?.data || [];
+
+    // Find a prono that is "offered free" and starts soon (next 2 hours)
+    const now = new Date();
+    const offered = pronos.find(p => 
+      p.is_offered_free && 
+      new Date(p.kickoff) > now && 
+      new Date(p.kickoff) < new Date(now.getTime() + 120 * 60000)
+    );
+
+    if (!offered) return;
+
+    const { db, sendPushToTokens } = await import('../firebase/admin.js');
+    if (!db) return;
+
+    // To make it "random", we only send it if a random check passes (50% chance every hour)
+    if (Math.random() > 0.5) {
+      logger.info(`[FCM] Saut de la notification aléatoire pour ${offered.match} (chance)`);
+      return;
+    }
+
+    const snap = await db.collection('fcm_tokens').where('is_vip', '==', false).get();
+    const tokens = snap.docs.map(d => d.data().token).filter(Boolean);
+    if (!tokens.length) return;
+
+    const message = {
+      title: `🎁 CADEAU : Prono VIP Offert !`,
+      body: `Le prono VIP sur ${offered.match} est exceptionnellement GRATUIT. Découvrez-le vite !`
+    };
+
+    await sendPushToTokens(tokens, message, { url: '/#pronos', type: 'vip_offered' });
+    logger.info(`[FCM] Prono VIP Offert envoyé à ${tokens.length} utilisateurs pour ${offered.match}`);
+  } catch (err) {
+    logger.warn('[FCM] Erreur Prono VIP Offert:', err.message);
+  }
+}
+
 export function startScheduler({ runOnStart = true, skipStartupIfFresh = true } = {}) {
   if (schedulerStarted) {
     return getSchedulerStatus();
@@ -152,11 +194,17 @@ export function startScheduler({ runOnStart = true, skipStartupIfFresh = true } 
     sendPromoNotification().catch(() => {});
   }, { timezone });
 
+  // Every hour, check if we should send an offered prono notification
+  offeredPronoTask = cron.schedule('0 * * * *', () => {
+    sendRandomVipPronoNotification().catch(() => {});
+  }, { timezone });
+
   schedulerStarted = true;
 
   logger.info(`[Scheduler] Pipeline: ${pipelineCron} (${timezone})`);
   logger.info(`[Scheduler] Resultats: ${resultsCron} (${timezone})`);
   logger.info(`[Scheduler] Promo VIP: ${promoCron} (${timezone})`);
+  logger.info(`[Scheduler] Prono Offert: hourly check (${timezone})`);
 
   if (runOnStart) {
     setTimeout(() => {

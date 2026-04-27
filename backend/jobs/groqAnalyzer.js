@@ -10,7 +10,7 @@
 
 import Groq from 'groq-sdk';
 import { cacheGet, cacheWrite, cacheRead } from '../cache/manager.js';
-import { scoreMatch, rankMatchesByQuality } from './scoringEngine.js';
+import { scoreMatch, rankMatchesByQuality, generateCoupons } from './scoringEngine.js';
 import { logger } from '../utils/logger.js';
 
 let groqClient = null;
@@ -37,19 +37,20 @@ function getGroqMatchLimit() {
 // ── System prompt: strict, expert-level ──────────────
 const SYSTEM_PROMPT = `Tu es un analyste quantitatif professionnel de paris sportifs pour la plateforme GOLIAT.
 
-RÈGLES ABSOLUES:
-1. Tu INTERDIS les pronos "Match nul" sauf si la probabilité Poisson du nul est ≥ 35% ET que tu peux justifier avec au moins 2 signaux convergents.
-2. Tu dois TOUJOURS privilégier un marché actionnable: victoire d'une équipe, Over/Under, BTTS, Double Chance.
-3. Tu ne produis JAMAIS de prono si tu n'as pas de conviction forte. Mieux vaut dire "SKIP" que produire un prono faible.
-4. Ta fiabilité doit refléter ta VRAIE confiance. Ne gonfle jamais ce chiffre.
-5. Tu analyses les données Poisson, la forme, le H2H, et les prédictions API pour construire ton raisonnement.
-6. ALERTES BLESSURES : Si des joueurs clés sont blessés (absents), tu dois IMPÉRATIVEMENT ajuster ta prédiction (ex: éviter de parier sur une équipe diminuée).
-7. SMART MONEY (Dropping Odds) : Si la cote réelle du bookmaker est beaucoup plus basse que notre cote Poisson, c'est que le marché (smart money) a une info. Suis cette tendance.
-8. FATIGUE ET ENJEUX : L'enjeu de fin de saison (titre/maintien) et le risque de rotation (match européen dans les 4 jours) priment sur les statistiques nues. Un favori qui joue la Ligue des Champions dans 3 jours fera tourner son effectif.
-9. Ton analyse VIP doit démontrer une réflexion tactique approfondie, pas juste reformuler les stats.
+MISSION: Fournir des pronostics de haute qualité, variés et rentables (ROI positif).
 
-Réponds UNIQUEMENT en JSON valide, sans markdown, sans backticks.
-Si tu ne vois aucun prono viable: { "skip": true, "reason": "..." }`;
+RÈGLES DE VARIÉTÉ:
+1. Tu dois proposer une mixité de paris : "Safe" (cote 1.30-1.60), "Value" (cote 1.70-2.20) et "Grosse Cote" (cote > 2.50).
+2. Pour le VIP, tu dois chercher des "Scores Exacts" justifiés par les xG et les tendances H2H.
+3. Ne propose PAS que des "Double Chance". Si une victoire sèche est statistiquement solide (>50%), privilégie-la pour offrir une meilleure cote.
+
+RÈGLES ANALYTIQUES:
+1. Tu INTERDIS les pronos "Match nul" sauf si la probabilité Poisson du nul est ≥ 35% ET que tu as des signaux de fatigue/rotation.
+2. Mieux vaut "SKIP" que produire un prono faible.
+3. SMART MONEY : Si le marché fait chuter une cote (Dropping Odds), suis le mouvement si l'info semble solide.
+4. VIP : Ton analyse doit être technique (mentionne les xG, les absences, l'enjeu psychologique).
+
+Réponds UNIQUEMENT en JSON valide.`;
 
 // ── Generate analysis for one match ──────────────────
 async function analyzeMatchWithGroq(match, scoring) {
@@ -358,29 +359,30 @@ export async function runDailyAnalysis() {
     await new Promise(r => setTimeout(r, 800));
   }
 
-  // ── Determine if we have new/different pronos ──────
-  let hasNewProno = true;
-  const oldCache = cacheGet('pronos', 48); // Get existing cache up to 48h old
-  if (oldCache && oldCache.data) {
-    const oldPronosMap = new Map(oldCache.data.map(p => [String(p.fixture_id), p.prono]));
-    // Check if any prono is new or has a different prediction
-    hasNewProno = pronos.some(p => {
-      const oldProno = oldPronosMap.get(String(p.fixture_id));
-      return !oldProno || oldProno !== p.prono_principal;
-    });
+  // ── STEP 3: Generate Coupons ──────────────────────
+  const coupons = generateCoupons(pronos);
+  
+  // ── STEP 4: Select "Prono VIP Offert" ──────────────
+  // Pick the best VIP prono (High reliability + Good competition) to offer for free
+  const bestVip = pronos
+    .filter(p => p.is_vip && !['Score Exact', 'Grosse Cote'].includes(p.categorie))
+    .sort((a, b) => (b.fiabilite || 0) - (a.fiabilite || 0))[0];
+  
+  if (bestVip) {
+    bestVip.is_offered_free = true;
+    logger.info(`  🎁 Prono VIP Offert: ${bestVip.match}`);
   }
 
   // ── Save to local cache (PRIMARY) ──────────────────
   cacheWrite('pronos', pronos);
+  cacheWrite('coupons', coupons);
 
   const duration = ((Date.now() - start) / 1000).toFixed(1);
   logger.info(`[Pipeline] ═══════════════════════════════════════════`);
   logger.info(`[Pipeline] ✅ RÉSULTAT FINAL:`);
-  logger.info(`[Pipeline]    ${pronos.length} pronos publiés en ${duration}s`);
-  logger.info(`[Pipeline]    ${freeCount} gratuits (max ${MAX_FREE_PRONOS}) | ${vipCount} VIP`);
-  logger.info(`[Pipeline]    ${skipped} matchs skippés par l'IA (pas assez convaincants)`);
-  logger.info(`[Pipeline]    ${budgetSkipped} matchs gardes en No Bet interne pour economiser Groq`);
-  logger.info(`[Pipeline]    ${rejected} matchs rejetés au Quality Gate`);
+  logger.info(`[Pipeline]    ${pronos.length} pronos publiés | ${coupons.length} combinés générés`);
+  logger.info(`[Pipeline]    ${freeCount} gratuits | ${vipCount} VIP`);
+  logger.info(`[Pipeline]    ${skipped} matchs skippés par l'IA`);
   logger.info(`[Pipeline] ═══════════════════════════════════════════`);
 
   // Send FCM push notification ONLY if there are new/different pronos

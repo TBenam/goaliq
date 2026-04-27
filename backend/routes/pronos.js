@@ -75,6 +75,7 @@ function formatProno(p, includeVipAnalysis = false) {
     marche_alternatif: p.marche_alternatif,
     cote_alternatif: p.cote_marche_alternatif,
     is_vip: p.is_vip,
+    is_offered_free: p.is_offered_free || false,
     result: p.result || null,
     generated_at: p.generated_at
   };
@@ -117,8 +118,8 @@ router.get('/free', async (req, res) => {
     const pronoCache = getPronoCache();
     const allPronos = pronoCache.data || [];
 
-    // Start with naturally free pronos
-    let freePronos = allPronos.filter(p => !p.is_vip);
+    // Start with naturally free pronos + VIP offered
+    let freePronos = allPronos.filter(p => !p.is_vip || p.is_offered_free);
 
     const MAX_FREE = 4;
 
@@ -316,5 +317,18 @@ async function checkUserVIP(uid) {
     return is_vip && (!expiry || expiry > new Date());
   } catch { return false; }
 }
+
+// ─────────────────────────────────────────────────────
+// GET /api/pronos/coupons — Combinés du jour
+// ─────────────────────────────────────────────────────
+router.get('/coupons', async (req, res) => {
+  try {
+    const cached = cacheGet('coupons', 24);
+    res.json(cached?.data || []);
+  } catch (err) {
+    logger.error('[pronos/coupons] Erreur:', err.message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
 
 export default router;
