@@ -3,7 +3,7 @@
    Network-first for app shell, cache-first for static externals
    ==================================================== */
 
-const CACHE_NAME = 'goliat-v4';
+const CACHE_NAME = 'goliat-v5';
 const APP_SHELL = [
   '/',
   '/index.html',
