@@ -2091,7 +2091,7 @@ const UI = {
   },
 
   shareTicket(match, prono, cote) {
-    const text = `🏆 *GOLIAT – Ticket du Jour*\n\n⚽ ${match}\n📊 Pronostic : *${prono}*\n📈 Cote : *@${cote}*\n\n💡 Rejoin GOLIAT pour les pronos VIP !\n👉 goliat.app`;
+    const text = `🏆 *GOLIAT – Ticket du Jour*\n\n⚽ ${match}\n📊 Pronostic : *${prono}*\n📈 Cote : *@${cote}*\n\n💡 Rejoin GOLIAT pour les pronos VIP !\n👉 goliat.fun`;
     if (navigator.share) {
       navigator.share({
         title: 'GOLIAT – Mon ticket du jour',

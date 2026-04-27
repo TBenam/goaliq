@@ -35,14 +35,20 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://127.0.0.1:5500',
   'http://127.0.0.1:8899',     // Dev http-server
-  'https://goliat.app',          // Production domain (to update)
+  'https://goliat.app',
+  'https://goliat.fun',          // New production domain
   null                           // Allow file:// for local dev
 ].filter(Boolean);
 
 app.use(cors({
   origin: (origin, cb) => {
-    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
-    cb(new Error(`CORS: ${origin} non autorisé`));
+    if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+      cb(null, true);
+    } else {
+      // Return false instead of an Error to avoid triggering the global error handler (500)
+      // The browser will handle the CORS rejection correctly.
+      cb(null, false);
+    }
   },
   credentials: true,
   methods: ['GET', 'POST', 'DELETE', 'PATCH'],
