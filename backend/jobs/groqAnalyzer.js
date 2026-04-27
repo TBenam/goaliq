@@ -280,32 +280,51 @@ export async function runDailyAnalysis() {
     return [];
   }
 
-  // ── STEP 2: Groq analysis on quality matches only ──
-  logger.info(`[Pipeline] 🧠 Étape 2: Analyse Groq de ${ranked.length} matchs qualifiés...`);
+  // ── STEP 2: Separate VIP (Groq) and Free (Algorithmic) ──
+  const VIP_TARGET = 18;
+  const FREE_TARGET = 5;
 
-  const groqLimit = getGroqMatchLimit();
-  const candidates = ranked.slice(0, groqLimit);
-  const budgetSkipped = Math.max(0, ranked.length - candidates.length);
-  logger.info(`[Pipeline] Budget Groq: ${candidates.length}/${ranked.length} matchs qualifies seront analyses.`);
+  const vipCandidates = ranked.slice(0, VIP_TARGET);
+  const freeCandidates = ranked.slice(VIP_TARGET, VIP_TARGET + FREE_TARGET);
+
+  logger.info(`[Pipeline] 🎯 Plan: ${vipCandidates.length} VIP (IA Groq) | ${freeCandidates.length} Gratuits (Scoring Math)`);
 
   const pronos = [];
   let freeCount = 0, vipCount = 0, skipped = 0;
 
-  for (const { match, scoring } of candidates) {
+  // --- Process VIP (Groq AI) ---
+  for (const { match, scoring } of vipCandidates) {
     const analysis = await analyzeMatchWithGroq(match, scoring);
-
     if (!analysis || analysis.skip) {
       skipped++;
       continue;
     }
 
-    // Determine VIP status based on quality + category
-    const isVip = freeCount >= MAX_FREE_PRONOS  // Cap free at MAX_FREE_PRONOS
-      || analysis.fiabilite >= 78
-      || ['Score Exact', 'Grosse Cote'].includes(analysis.categorie)
-      || (analysis.cote_estimee && analysis.cote_estimee >= 3.0);
+    const prono = buildPronoObject(match, scoring, analysis, true);
+    pronos.push(prono);
+    vipCount++;
+    
+    logger.info(`  ✓ [VIP] ${match.home_team} vs ${match.away_team} (IA)`);
+    await tryFirestoreSave(prono);
+    await new Promise(r => setTimeout(r, 800)); // Rate limit
+  }
 
-    const prono = {
+  // --- Process Free (Algorithmic / Prioritaire) ---
+  for (const { match, scoring } of freeCandidates) {
+    const analysis = buildFallbackAnalysis(match, scoring);
+    if (!analysis) continue;
+
+    const prono = buildPronoObject(match, scoring, analysis, false);
+    pronos.push(prono);
+    freeCount++;
+
+    logger.info(`  ✓ [FREE] ${match.home_team} vs ${match.away_team} (Prioritaire)`);
+    await tryFirestoreSave(prono);
+  }
+
+  // Helper to build the final object
+  function buildPronoObject(match, scoring, analysis, isVip) {
+    return {
       fixture_id: match.fixture_id,
       match: `${match.home_team} vs ${match.away_team}`,
       home_team: match.home_team,
@@ -331,32 +350,15 @@ export async function runDailyAnalysis() {
         confidenceScore: scoring.confidenceScore,
         dataQuality: scoring.dataQuality,
         aiPriorityScore: scoring.aiPriorityScore,
-        valueEdge: scoring.bestMarket?.valueEdge ?? null,
-        bookmakerOdd: scoring.bestMarket?.bookmakerOdd ?? null,
         bestMarket: scoring.bestMarket,
         topScores: scoring.topScores
       },
       internal_audit: {
-        analysis_source: analysis.analysis_source || 'unknown',
+        analysis_source: isVip ? 'groq_ai' : 'scoring_engine',
         analysis_model: analysis.analysis_model || null,
-        analysis_error: analysis.analysis_error || null,
-        groq_budget_limit: groqLimit
-      },
-      generated_at: new Date().toISOString()
+        generated_at: new Date().toISOString()
+      }
     };
-
-    pronos.push(prono);
-    if (isVip) vipCount++; else freeCount++;
-
-    const badge = isVip ? '[VIP]' : '[FREE]';
-    const confBadge = `[conf:${scoring.confidenceScore}|dq:${scoring.dataQuality.score}|ai:${scoring.aiPriorityScore}]`;
-    logger.info(`  ✓ ${match.home_team} vs ${match.away_team} → ${analysis.prono_principal} @${analysis.cote_estimee} (${analysis.fiabilite}%) ${badge} ${confBadge}`);
-
-    // Optional Firestore save
-    await tryFirestoreSave(prono);
-
-    // 800ms pause between Groq calls (rate limit)
-    await new Promise(r => setTimeout(r, 800));
   }
 
   // ── STEP 3: Generate Coupons ──────────────────────
