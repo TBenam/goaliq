@@ -609,13 +609,13 @@ export function scoreMatch(match) {
   const qualityGate = {
     passed: false,
     reason: '',
-    minConfidence: 22, // Further reduced to allow more volume
-    minProb: 38,       // Further reduced to allow high-odds picks
+    minConfidence: 35, // Reverted to 35% as requested
+    minProb: 44,       // Reverted to 44%
     minDataQuality: 35 
   };
 
   const needsClearWinner = ['home_win', 'away_win'].includes(bestMarket?.type);
-  const minClarityGap = needsClearWinner ? 4 : 2; // Reduced gap requirements
+  const minClarityGap = needsClearWinner ? 8 : 4; // Reverted gap requirements
 
   if (!bestMarket) {
     qualityGate.reason = 'Aucun marché viable identifié';
