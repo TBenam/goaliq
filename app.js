@@ -50,6 +50,16 @@ function getVipCode() {
   return code;
 }
 
+function getVisitorId() {
+  let visitorId = localStorage.getItem('goliat_visitor_id');
+  if (!visitorId) {
+    const randomPart = Math.random().toString(36).slice(2, 10);
+    visitorId = `vis-${Date.now().toString(36)}-${randomPart}`;
+    localStorage.setItem('goliat_visitor_id', visitorId);
+  }
+  return visitorId;
+}
+
 // ── Construit un lien WhatsApp avec message pré-rempli ─
 function buildWaLink(plan) {
   const code = getVipCode();
@@ -308,6 +318,25 @@ const DATA = {
   }
 };
 
+DATA.crm = {
+  totals: {
+    visits_today: 0,
+    page_views_today: 0,
+    subscriptions_today: 0,
+    revenue_today_fcfa: 0,
+    visits_range: 0,
+    page_views_range: 0,
+    subscriptions_range: 0,
+    revenue_range_fcfa: 0,
+    checkout_intents_range: 0
+  },
+  vip: { active_codes: 0, total_codes: 0, expired_codes: 0, plans: {} },
+  daily: [],
+  top_pages: [],
+  subscriptions: [],
+  suggestions: []
+};
+
 if (DATA.temoignages?.[1]?.texte) {
   DATA.temoignages[1].texte = DATA.temoignages[1].texte.replace('GOLIAT', CONFIG.appName);
 }
@@ -325,6 +354,173 @@ function getCurrentDateLabelWithYear() {
     month: 'long',
     year: 'numeric'
   }).format(new Date());
+}
+
+function formatFcfa(amount) {
+  return new Intl.NumberFormat('fr-FR').format(Number(amount || 0)) + ' FCFA';
+}
+
+function loadTrackedBets() {
+  try {
+    return JSON.parse(localStorage.getItem('goliat_tracked_bets') || '[]');
+  } catch {
+    return [];
+  }
+}
+
+function saveTrackedBets(bets) {
+  localStorage.setItem('goliat_tracked_bets', JSON.stringify(bets || []));
+}
+
+function getBetProfit(bet) {
+  const stake = Number(bet.stake || 0);
+  const odds = Number(bet.odds || 0);
+  if (bet.status === 'won') return Math.round(stake * Math.max(odds - 1, 0));
+  if (bet.status === 'lost') return -stake;
+  if (bet.status === 'void') return 0;
+  return 0;
+}
+
+function getPersonalBetStats() {
+  const bets = loadTrackedBets();
+  const settled = bets.filter((bet) => ['won', 'lost', 'void'].includes(bet.status));
+  const won = settled.filter((bet) => bet.status === 'won').length;
+  const staked = bets.reduce((sum, bet) => sum + Number(bet.stake || 0), 0);
+  const profit = settled.reduce((sum, bet) => sum + getBetProfit(bet), 0);
+  const roi = staked > 0 ? Math.round((profit / staked) * 100) : 0;
+  const hitRate = settled.length > 0 ? Math.round((won / settled.length) * 100) : 0;
+
+  return {
+    bets,
+    total: bets.length,
+    pending: bets.filter((bet) => bet.status === 'pending').length,
+    won,
+    settled: settled.length,
+    staked,
+    profit,
+    roi,
+    hitRate
+  };
+}
+
+function getRiskProfile(prono = {}) {
+  const odds = Number(prono.cote || prono.cote_estimee || 0);
+  const confidence = Number(prono.fiabilite || 0);
+  if (odds >= 4) return { label: 'Grosse cote', className: 'danger', stake: '0.5% bankroll', note: 'Risque eleve, exposition minimale.' };
+  if (confidence >= 78 && odds <= 2) return { label: 'Safe', className: 'safe', stake: '2% bankroll', note: 'Profil stable, ideal discipline.' };
+  if (odds >= 2.1 && confidence >= 65) return { label: 'Value', className: 'value', stake: '1% bankroll', note: 'Bon potentiel, variance normale.' };
+  return { label: 'Controle', className: 'neutral', stake: '1% bankroll', note: 'Mise mesuree recommandee.' };
+}
+
+function getVerifiedRecord() {
+  const history = DATA.historique || [];
+  const settled = history.filter((item) => typeof item.gagne === 'boolean');
+  const won = settled.filter((item) => item.gagne).length;
+  const avgOdds = settled.length
+    ? (settled.reduce((sum, item) => sum + Number(item.cote || 0), 0) / settled.length).toFixed(2)
+    : DATA.stats.cote_vip;
+
+  return {
+    total: settled.length,
+    won,
+    lost: Math.max(0, settled.length - won),
+    hitRate: settled.length ? Math.round((won / settled.length) * 100) : DATA.stats.taux,
+    avgOdds
+  };
+}
+
+function buildVipPersonalDashboard() {
+  const stats = getPersonalBetStats();
+  const recentBets = stats.bets.slice(0, 6);
+  const featured = getFeaturedProno();
+  const featuredOdds = featured?.cote || featured?.cote_estimee || 0;
+  const risk = getRiskProfile(featured);
+
+  return `
+    <section class="vip-tool-section">
+      <div class="section-header" style="margin-bottom:12px;">
+        <h2 class="section-title">Mon tableau VIP</h2>
+        <span class="badge badge-primary">${stats.total} tickets</span>
+      </div>
+
+      <div class="admin-kpi-grid">
+        <div class="admin-kpi"><span>Profit suivi</span><strong>${formatFcfa(stats.profit)}</strong></div>
+        <div class="admin-kpi"><span>ROI perso</span><strong>${stats.roi}%</strong></div>
+        <div class="admin-kpi"><span>Taux gagne</span><strong>${stats.hitRate}%</strong></div>
+        <div class="admin-kpi"><span>En attente</span><strong>${stats.pending}</strong></div>
+      </div>
+
+      <div class="card-elevated" style="padding:16px;margin-bottom:16px;">
+        <h3 class="vip-tool-title">Ajouter le prono du jour</h3>
+        <p class="vip-tool-copy">Profil: ${risk.label}. Mise conseillee: ${risk.stake}. ${risk.note}</p>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <input id="vip-stake-input" class="admin-input" type="number" value="1000" min="0" inputmode="numeric" aria-label="Mise">
+          <button class="btn-primary" style="min-width:108px;justify-content:center;" onclick="UI.trackBetFromProno('${String(featured?.match || 'Match Goliat').replaceAll("'", "\\'")}','${String(featured?.prono || 'Prono Goliat').replaceAll("'", "\\'")}',${Number(featuredOdds || 0)})">Suivre</button>
+        </div>
+        <button class="btn-ghost" style="margin-top:10px;width:100%;justify-content:center;" onclick="UI.shareVipTicketImage('${String(featured?.match || 'Match Goliat').replaceAll("'", "\\'")}','${String(featured?.prono || 'Prono Goliat').replaceAll("'", "\\'")}',${Number(featuredOdds || 0)},${Number(featured?.fiabilite || 0)})">
+          <span class="material-symbols-outlined icon-sm">ios_share</span>
+          Generer une image de ticket VIP
+        </button>
+      </div>
+
+      <div class="card-elevated" style="padding:16px;margin-bottom:16px;">
+        <h3 class="vip-tool-title">Ticket manuel</h3>
+        <div class="admin-form-grid">
+          <input id="custom-bet-match" class="admin-input" placeholder="Match">
+          <input id="custom-bet-prono" class="admin-input" placeholder="Prono">
+          <input id="custom-bet-odds" class="admin-input" type="number" step="0.01" placeholder="Cote">
+          <input id="custom-bet-stake" class="admin-input" type="number" placeholder="Mise FCFA">
+        </div>
+        <button class="btn-secondary" style="width:100%;justify-content:center;margin-top:12px;" onclick="UI.addCustomBet()">Ajouter au tracker</button>
+      </div>
+
+      <div class="card-elevated" style="padding:16px;margin-bottom:16px;">
+        <h3 class="vip-tool-title">Mes derniers tickets</h3>
+        ${recentBets.length ? recentBets.map((bet) => `
+          <div class="ticket-row">
+            <div>
+              <strong>${bet.match}</strong>
+              <span>${bet.prono} · @${bet.odds} · ${formatFcfa(bet.stake)}</span>
+              <small>Resultat: ${bet.status} · P/L ${formatFcfa(getBetProfit(bet))}</small>
+            </div>
+            <div class="ticket-actions">
+              <button onclick="UI.setBetStatus('${bet.id}','won')" aria-label="Gagne"><span class="material-symbols-outlined">check</span></button>
+              <button onclick="UI.setBetStatus('${bet.id}','lost')" aria-label="Perdu"><span class="material-symbols-outlined">close</span></button>
+              <button onclick="UI.deleteBet('${bet.id}')" aria-label="Retirer"><span class="material-symbols-outlined">delete</span></button>
+            </div>
+          </div>
+        `).join('') : '<div class="admin-empty">Aucun ticket suivi. Ajoute ton premier ticket pour calculer ton ROI.</div>'}
+      </div>
+    </section>`;
+}
+
+function buildVerifiedRecordPanel() {
+  const record = getVerifiedRecord();
+  return `
+    <section class="card-elevated verified-record-panel" style="padding:18px;margin-bottom:22px;">
+      <div class="section-header" style="margin-bottom:14px;">
+        <h2 class="section-title">Records verifies</h2>
+        <span class="badge badge-primary">${record.total} resultats</span>
+      </div>
+      <div class="admin-mini-grid">
+        <div><span>Reussite</span><strong>${record.hitRate}%</strong></div>
+        <div><span>Gagnes</span><strong>${record.won}</strong></div>
+        <div><span>Perdus</span><strong>${record.lost}</strong></div>
+        <div><span>Cote moy.</span><strong>@${record.avgOdds}</strong></div>
+      </div>
+      <p class="vip-tool-copy" style="margin-top:12px;">Historique affiche pour renforcer la confiance. Les performances passees ne garantissent jamais les resultats futurs.</p>
+    </section>`;
+}
+
+function buildResponsibleBettingPanel() {
+  return `
+    <section class="responsible-panel">
+      <div>
+        <h2>Discipline bankroll</h2>
+        <p>Goliat recommande des mises entre 0.5% et 2% de bankroll par ticket. Aucun prono ne doit mettre ton capital en danger.</p>
+      </div>
+      <span class="material-symbols-outlined">shield</span>
+    </section>`;
 }
 
 function formatKickoffTime(kickoff) {
@@ -737,6 +933,40 @@ const API = {
     } catch (err) {
       console.warn('[API] Erreur subscription:', err.message);
     }
+  },
+
+  trackEvent(eventType, payload = {}) {
+    const body = {
+      event_type: eventType,
+      visitor_id: getVisitorId(),
+      vip_code: getVipCode(),
+      ...payload
+    };
+
+    fetch(`${API_BASE}/analytics/event`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      keepalive: true
+    }).catch(() => {});
+  },
+
+  async loadCrmOverview(secret, days = 7) {
+    const params = new URLSearchParams({ secret, days: String(days) });
+    return this.fetch(`/admin/crm/overview?${params.toString()}`);
+  },
+
+  async adminActivateVip({ secret, code, plan, phone, amountFcfa }) {
+    return this.fetch('/admin/activate', {
+      method: 'POST',
+      body: JSON.stringify({
+        secret,
+        code,
+        plan,
+        phone,
+        amount_fcfa: amountFcfa
+      })
+    });
   }
 };
 
@@ -817,6 +1047,7 @@ const Router = {
 
     // Update hash for deep linking
     history.replaceState(null, '', `#${view}`);
+    API.trackEvent('page_view', { page: view });
 
     // Show go-vip button only on non-vip views
     const goVipBtn = document.getElementById('go-vip-btn');
@@ -827,7 +1058,7 @@ const Router = {
 
   init() {
     const hash = window.location.hash.replace('#', '');
-    const validViews = ['accueil', 'pronos', 'journal', 'vip'];
+    const validViews = ['accueil', 'pronos', 'journal', 'vip', 'admin'];
     const startView = validViews.includes(hash) ? hash : 'accueil';
     this.navigate(startView);
 
@@ -859,6 +1090,7 @@ const C = {
     const { home, away } = splitMatchLabel(prono.match);
     const countdownHtml = Enhancements.buildCountdownBadge(prono.kickoff || prono.heure);
     const liveStatus = Enhancements.getLiveStatus(prono);
+    const risk = getRiskProfile(prono);
     return `
       <div class="match-card mb-4">
         <div class="match-header">
@@ -894,6 +1126,7 @@ const C = {
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.65rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--outline);">
           <span>Fiabilité : ${prono.fiabilite}%</span>
+          <span class="risk-chip ${risk.className}">${risk.label}</span>
           <button onclick="UI.shareTicket('${prono.match}','${prono.prono}',${prono.cote})" style="background:none;border:none;color:var(--primary);font-size:0.75rem;font-weight:700;display:flex;align-items:center;gap:3px;cursor:pointer;">
             <span class="material-symbols-outlined icon-sm">share</span> Partager
           </button>
@@ -1366,6 +1599,10 @@ const Views = {
           </div>
         </div>
 
+        ${buildVerifiedRecordPanel()}
+        ${STATE.isVip ? buildVipPersonalDashboard() : ''}
+        ${buildResponsibleBettingPanel()}
+
         <!-- Social Proof quote -->
         <div style="background:rgba(0,108,73,0.04);border-radius:var(--radius-xl);border:1px solid rgba(0,108,73,0.1);padding:20px;margin-bottom:24px;">
           <div style="display:flex;gap:3px;margin-bottom:10px;color:var(--secondary-container);">★★★★★</div>
@@ -1445,6 +1682,190 @@ const Views = {
         </div>
 
       </div>`;
+  },
+
+  /* ---- ADMIN CRM ---- */
+  admin() {
+    const secret = localStorage.getItem('goliat_admin_secret') || '';
+    const crm = DATA.crm || {};
+    const totals = crm.totals || {};
+    const vip = crm.vip || {};
+    const dailyRows = (crm.daily || []).slice(0, 7);
+    const topPages = crm.top_pages || [];
+    const subscriptions = crm.subscriptions || [];
+    const planRevenue = crm.plan_revenue || [];
+    const segments = vip.segments || {};
+    const relances = vip.relances || {};
+    const actions = vip.recommended_actions || [];
+    const suggestions = crm.suggestions || [
+      'Suivre la conversion entre clic WhatsApp et paiement confirme.',
+      'Relancer les VIP qui expirent bientot.',
+      'Comparer le revenu par plan avant de lancer une promotion.'
+    ];
+
+    return `
+      <div class="view px-4 py-4 admin-view">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:18px;">
+          <div>
+            <div style="font-size:0.62rem;font-weight:800;text-transform:uppercase;letter-spacing:0.15em;color:var(--primary);margin-bottom:4px;">Acces administrateur</div>
+            <h1 style="font-size:1.9rem;font-weight:900;letter-spacing:-0.05em;line-height:1.1;">CRM Goliat</h1>
+            <p style="font-size:0.82rem;color:var(--on-surface-variant);margin-top:5px;">Visites, ventes VIP, encaissements et suivi quotidien.</p>
+          </div>
+          <button class="btn-primary" style="width:46px;height:46px;border-radius:50%;padding:0;display:flex;align-items:center;justify-content:center;" onclick="UI.loadCrm()">
+            <span class="material-symbols-outlined">refresh</span>
+          </button>
+        </div>
+
+        <div class="card-elevated admin-auth-card" style="padding:16px;margin-bottom:16px;">
+          <label class="admin-label" for="admin-secret">Mot de passe admin</label>
+          <div style="display:flex;gap:8px;">
+            <input id="admin-secret" type="password" value="${secret}" placeholder="Mot de passe admin" class="admin-input" autocomplete="current-password">
+            <button class="btn-primary" style="min-width:98px;justify-content:center;" onclick="UI.saveAdminSecret()">Entrer</button>
+          </div>
+          <div id="admin-status" style="font-size:0.76rem;color:var(--outline);margin-top:8px;">${secret ? 'Mot de passe garde localement sur cet appareil.' : 'Entrez le mot de passe admin pour charger le CRM.'}</div>
+        </div>
+
+        <div class="admin-kpi-grid">
+          <div class="admin-kpi"><span>Visites aujourd'hui</span><strong>${totals.visits_today || 0}</strong></div>
+          <div class="admin-kpi"><span>Pages vues</span><strong>${totals.page_views_today || 0}</strong></div>
+          <div class="admin-kpi"><span>Abonnements</span><strong>${totals.subscriptions_today || 0}</strong></div>
+          <div class="admin-kpi revenue"><span>Encaisse aujourd'hui</span><strong>${formatFcfa(totals.revenue_today_fcfa)}</strong></div>
+        </div>
+
+        <div class="card-elevated" style="padding:16px;margin-bottom:16px;">
+          <div class="section-header" style="margin-bottom:12px;">
+            <h2 class="section-title">Moteur de croissance</h2>
+            <span class="badge badge-primary">${totals.checkout_conversion_rate || 0}% conv.</span>
+          </div>
+          <div class="admin-mini-grid">
+            <div><span>Panier moyen</span><strong>${formatFcfa(totals.average_order_value_fcfa)}</strong></div>
+            <div><span>Revenu / vue</span><strong>${formatFcfa(totals.revenue_per_page_view_fcfa)}</strong></div>
+            <div><span>Clics VIP</span><strong>${totals.checkout_intents_range || 0}</strong></div>
+            <div><span>VIP a relancer</span><strong>${segments.expiring_soon || 0}</strong></div>
+          </div>
+        </div>
+
+        <div class="card-elevated" style="padding:16px;margin-bottom:16px;">
+          <div class="section-header" style="margin-bottom:12px;">
+            <h2 class="section-title">Performance 7 jours</h2>
+            <span class="badge badge-primary">${formatFcfa(totals.revenue_range_fcfa)}</span>
+          </div>
+          <div class="admin-daily-list">
+            ${dailyRows.length ? dailyRows.map(row => `
+              <div class="admin-daily-row">
+                <div>
+                  <strong>${row.day}</strong>
+                  <span>${row.visits || 0} visites · ${row.page_views || 0} vues · ${row.checkout_intents || 0} intentions</span>
+                </div>
+                <div style="text-align:right;">
+                  <strong>${formatFcfa(row.revenue_fcfa)}</strong>
+                  <span>${row.subscriptions || 0} abo.</span>
+                </div>
+              </div>
+            `).join('') : '<div class="admin-empty">Aucune donnee CRM pour le moment. Ouvrez quelques pages pour alimenter le tableau.</div>'}
+          </div>
+        </div>
+
+        <div class="card-elevated" style="padding:16px;margin-bottom:16px;">
+          <h2 class="section-title" style="margin-bottom:12px;">Activer un VIP</h2>
+          <div class="admin-form-grid">
+            <div>
+              <label class="admin-label">Code client</label>
+              <input id="crm-code" class="admin-input" placeholder="GIQ-XXXXXX" style="text-transform:uppercase;">
+            </div>
+            <div>
+              <label class="admin-label">Plan</label>
+              <select id="crm-plan" class="admin-input" onchange="UI.syncAdminPlanPrice()">
+                <option value="weekly">7 jours</option>
+                <option value="monthly" selected>Mensuel</option>
+                <option value="quarterly">Trimestriel</option>
+                <option value="bonus">Bonus</option>
+              </select>
+            </div>
+            <div>
+              <label class="admin-label">Montant encaisse</label>
+              <input id="crm-amount" class="admin-input" type="number" value="10000" inputmode="numeric">
+            </div>
+            <div>
+              <label class="admin-label">WhatsApp client</label>
+              <input id="crm-phone" class="admin-input" placeholder="+237 6XX XXX XXX">
+            </div>
+          </div>
+          <button class="btn-secondary" style="width:100%;justify-content:center;margin-top:12px;" onclick="UI.adminActivateVip()">
+            <span class="material-symbols-outlined icon-sm">workspace_premium</span>
+            Activer et enregistrer le paiement
+          </button>
+        </div>
+
+        <div class="card-elevated" style="padding:16px;margin-bottom:16px;">
+          <div class="section-header" style="margin-bottom:12px;">
+            <h2 class="section-title">Acces VIP</h2>
+            <span class="badge badge-gold">${vip.active_codes || 0} actifs</span>
+          </div>
+          <div class="admin-mini-grid">
+            <div><span>Total codes</span><strong>${vip.total_codes || 0}</strong></div>
+            <div><span>Expires</span><strong>${vip.expired_codes || 0}</strong></div>
+            <div><span>Mensuel</span><strong>${vip.plans?.monthly || 0}</strong></div>
+            <div><span>Trimestriel</span><strong>${vip.plans?.quarterly || 0}</strong></div>
+          </div>
+        </div>
+
+        <div class="card-elevated" style="padding:16px;margin-bottom:16px;">
+          <h2 class="section-title" style="margin-bottom:12px;">Relances recommandees</h2>
+          ${actions.length ? actions.map(action => `
+            <div class="admin-suggestion">
+              <span class="material-symbols-outlined icon-sm">campaign</span>
+              <span>${action}</span>
+            </div>
+          `).join('') : '<div class="admin-empty">Aucune action urgente.</div>'}
+          ${(relances.expiring_soon || []).slice(0, 4).map(client => `
+            <div class="admin-list-row">
+              <span>${client.code} · expire dans ${client.days_left}j<small>${client.phone || 'WhatsApp non renseigne'}</small></span>
+              <strong>${client.plan}</strong>
+            </div>
+          `).join('')}
+        </div>
+
+        <div class="card-elevated" style="padding:16px;margin-bottom:16px;">
+          <h2 class="section-title" style="margin-bottom:12px;">Revenu par plan</h2>
+          ${planRevenue.length ? planRevenue.map(plan => `
+            <div class="admin-list-row">
+              <span>${plan.plan} · ${plan.subscriptions} abonnement(s)</span>
+              <strong>${formatFcfa(plan.revenue_fcfa)}</strong>
+            </div>
+          `).join('') : '<div class="admin-empty">Les revenus par plan apparaitront apres les ventes.</div>'}
+        </div>
+
+        <div class="card-elevated" style="padding:16px;margin-bottom:16px;">
+          <h2 class="section-title" style="margin-bottom:12px;">Top pages</h2>
+          ${topPages.length ? topPages.map(page => `
+            <div class="admin-list-row">
+              <span>#${page.page || 'inconnue'}</span>
+              <strong>${page.views || 0} vues</strong>
+            </div>
+          `).join('') : '<div class="admin-empty">Les pages populaires apparaitront ici.</div>'}
+        </div>
+
+        <div class="card-elevated" style="padding:16px;margin-bottom:16px;">
+          <h2 class="section-title" style="margin-bottom:12px;">Derniers abonnements</h2>
+          ${subscriptions.length ? subscriptions.map(sub => `
+            <div class="admin-list-row">
+              <span>${sub.code} · ${sub.plan}<small>${sub.phone ? ' · ' + sub.phone : ''}</small></span>
+              <strong>${formatFcfa(sub.amount_fcfa)}</strong>
+            </div>
+          `).join('') : '<div class="admin-empty">Aucun encaissement enregistre.</div>'}
+        </div>
+
+        <div class="card-elevated" style="padding:16px;margin-bottom:8px;">
+          <h2 class="section-title" style="margin-bottom:12px;">Idees CRM a ajouter</h2>
+          ${suggestions.map(item => `
+            <div class="admin-suggestion">
+              <span class="material-symbols-outlined icon-sm">check_circle</span>
+              <span>${item}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>`;
   }
 };
 
@@ -1460,6 +1881,9 @@ const App = {
     container.innerHTML = viewFn();
     hydrateRenderedView(container, view);
     STATE.currentView = view;
+    if (view === 'admin' && !DATA.crm?.loaded_at) {
+      setTimeout(() => UI.loadCrm(), 0);
+    }
   },
 
   updateNav(view) {
@@ -1604,6 +2028,7 @@ const Modal = {
 
   trackClick(planId) {
     console.log(`[GOLIAT] Plan clicked: ${planId} — Code: ${getVipCode()}`);
+    API.trackEvent('vip_checkout', { page: STATE.currentView, meta: { plan: planId } });
     Modal.startPolling();
   }
 };
@@ -1650,6 +2075,184 @@ const UI = {
       } else {
         UI.showToast('📋 Partagez ce ticket sur WhatsApp !');
       }
+    }
+  },
+
+  getAdminSecret() {
+    return document.getElementById('admin-secret')?.value?.trim()
+      || localStorage.getItem('goliat_admin_secret')
+      || '';
+  },
+
+  saveAdminSecret() {
+    const secret = UI.getAdminSecret();
+    const status = document.getElementById('admin-status');
+    if (!secret) {
+      if (status) status.textContent = 'Mot de passe admin requis pour ouvrir le CRM.';
+      return;
+    }
+
+    localStorage.setItem('goliat_admin_secret', secret);
+    if (status) status.textContent = 'Mot de passe enregistre. Chargement du CRM...';
+    API.trackEvent('admin_open', { page: 'admin' });
+    UI.loadCrm();
+  },
+
+  async loadCrm() {
+    if (STATE.currentView !== 'admin') return;
+    const secret = UI.getAdminSecret();
+    const status = document.getElementById('admin-status');
+    if (!secret) {
+      if (status) status.textContent = 'Entrez le mot de passe admin pour charger le CRM.';
+      return;
+    }
+
+    try {
+      if (status) status.textContent = 'Chargement des donnees CRM...';
+      DATA.crm = { ...(await API.loadCrmOverview(secret, 7)), loaded_at: Date.now() };
+      if (status) status.textContent = 'CRM a jour.';
+      App.render('admin');
+    } catch (err) {
+      if (status) status.textContent = err.status === 403 ? 'Mot de passe invalide.' : `Erreur CRM: ${err.message}`;
+    }
+  },
+
+  syncAdminPlanPrice() {
+    const prices = { weekly: 3500, monthly: 10000, quarterly: 25000, bonus: 1000 };
+    const plan = document.getElementById('crm-plan')?.value || 'monthly';
+    const amount = document.getElementById('crm-amount');
+    if (amount) amount.value = prices[plan] || 0;
+  },
+
+  async adminActivateVip() {
+    const secret = UI.getAdminSecret();
+    const code = document.getElementById('crm-code')?.value?.trim().toUpperCase();
+    const plan = document.getElementById('crm-plan')?.value || 'monthly';
+    const phone = document.getElementById('crm-phone')?.value?.trim();
+    const amountFcfa = Number(document.getElementById('crm-amount')?.value || 0);
+
+    if (!secret || !code) {
+      UI.showToast('Mot de passe admin et code client requis.');
+      return;
+    }
+
+    try {
+      const result = await API.adminActivateVip({ secret, code, plan, phone, amountFcfa });
+      UI.showToast(result.message || 'VIP active.');
+      const codeInput = document.getElementById('crm-code');
+      const phoneInput = document.getElementById('crm-phone');
+      if (codeInput) codeInput.value = '';
+      if (phoneInput) phoneInput.value = '';
+      await UI.loadCrm();
+    } catch (err) {
+      UI.showToast(err.message || 'Activation impossible.');
+    }
+  },
+
+  trackBetFromProno(match, prono, odds) {
+    const stakeInput = document.getElementById('vip-stake-input');
+    const stake = Math.max(0, Number(stakeInput?.value || 1000));
+    const bets = loadTrackedBets();
+    bets.unshift({
+      id: `bet-${Date.now()}`,
+      match,
+      prono,
+      odds: Number(odds || 0),
+      stake,
+      status: 'pending',
+      source: 'goliat-prono',
+      created_at: new Date().toISOString()
+    });
+    saveTrackedBets(bets);
+    UI.showToast('Ticket ajoute au tracker VIP.');
+    App.render(STATE.currentView);
+  },
+
+  addCustomBet() {
+    const match = document.getElementById('custom-bet-match')?.value?.trim();
+    const prono = document.getElementById('custom-bet-prono')?.value?.trim();
+    const odds = Number(document.getElementById('custom-bet-odds')?.value || 0);
+    const stake = Number(document.getElementById('custom-bet-stake')?.value || 0);
+    if (!match || !prono || !odds || !stake) {
+      UI.showToast('Match, prono, cote et mise sont requis.');
+      return;
+    }
+
+    const bets = loadTrackedBets();
+    bets.unshift({
+      id: `bet-${Date.now()}`,
+      match,
+      prono,
+      odds,
+      stake,
+      status: 'pending',
+      source: 'custom',
+      created_at: new Date().toISOString()
+    });
+    saveTrackedBets(bets);
+    UI.showToast('Ticket manuel ajoute.');
+    App.render(STATE.currentView);
+  },
+
+  setBetStatus(id, status) {
+    const bets = loadTrackedBets().map((bet) => (
+      bet.id === id ? { ...bet, status, settled_at: new Date().toISOString() } : bet
+    ));
+    saveTrackedBets(bets);
+    UI.showToast('Statut du ticket mis a jour.');
+    App.render(STATE.currentView);
+  },
+
+  deleteBet(id) {
+    saveTrackedBets(loadTrackedBets().filter((bet) => bet.id !== id));
+    UI.showToast('Ticket retire du tracker.');
+    App.render(STATE.currentView);
+  },
+
+  async shareVipTicketImage(match, prono, odds, confidence = 0) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1080;
+    canvas.height = 1350;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#0f3323';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#10b981';
+    ctx.fillRect(0, 0, canvas.width, 18);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 86px Inter, Arial';
+    ctx.fillText('GOLIAT VIP', 70, 145);
+    ctx.fillStyle = '#6ffbbe';
+    ctx.font = '800 34px Inter, Arial';
+    ctx.fillText('Ticket premium verifie', 72, 200);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '800 46px Inter, Arial';
+    const lines = String(match).match(/.{1,28}(\s|$)/g) || [match];
+    lines.slice(0, 3).forEach((line, index) => ctx.fillText(line.trim(), 72, 340 + index * 58));
+    ctx.fillStyle = '#fea619';
+    ctx.font = '900 64px Inter, Arial';
+    ctx.fillText(`@${odds}`, 72, 565);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '800 52px Inter, Arial';
+    const pickLines = String(prono).match(/.{1,26}(\s|$)/g) || [prono];
+    pickLines.slice(0, 3).forEach((line, index) => ctx.fillText(line.trim(), 72, 680 + index * 62));
+    ctx.fillStyle = '#6ffbbe';
+    ctx.font = '800 38px Inter, Arial';
+    ctx.fillText(`Confiance IA: ${confidence || '--'}%`, 72, 920);
+    ctx.fillStyle = 'rgba(255,255,255,0.72)';
+    ctx.font = '600 30px Inter, Arial';
+    ctx.fillText('Gestion conseillee: 1% a 2% de bankroll', 72, 990);
+    ctx.fillText('Les resultats passes ne garantissent pas les resultats futurs.', 72, 1050);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 42px Inter, Arial';
+    ctx.fillText('Rejoins le club VIP sur Goliat', 72, 1215);
+
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    const file = new File([blob], 'ticket-goliat-vip.png', { type: 'image/png' });
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file], title: 'Ticket Goliat VIP' });
+    } else {
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
     }
   }
 };

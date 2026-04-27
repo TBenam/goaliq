@@ -24,6 +24,7 @@ const FILES = {
   matches: join(CACHE_DIR, 'matches.json'),   // Matchs bruts API-Football
   history: join(CACHE_DIR, 'history.json'),   // Historique des résultats
   stats:   join(CACHE_DIR, 'stats.json'),     // Stats globales (win rate, etc.)
+  vip_codes: join(CACHE_DIR, 'vip_codes.json'), // Codes VIP admin
 };
 
 /**

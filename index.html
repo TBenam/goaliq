@@ -34,7 +34,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=block" rel="stylesheet" />
 
   <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
@@ -133,6 +133,9 @@
       <span class="app-logo">Goliat</span>
       <div style="display:flex; align-items:center; gap:10px;">
         <div id="streak-display" style="display:none;"></div>
+        <button class="btn-admin-top" id="admin-access-btn" aria-label="Espace admin" onclick="Router.navigate('admin')">
+          <span class="material-symbols-outlined">admin_panel_settings</span>
+        </button>
         <button class="btn-vip-top" id="go-vip-btn" aria-label="Passer en VIP">GO VIP ⚡</button>
       </div>
     </header>

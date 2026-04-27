@@ -102,6 +102,141 @@ function evaluateValueEdge(ourProb, impliedProb) {
   return ((ourProb - impliedProb) / impliedProb) * 100;
 }
 
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function round1(value) {
+  return Math.round(value * 10) / 10;
+}
+
+function round2(value) {
+  return Math.round(value * 100) / 100;
+}
+
+function parseOdd(value) {
+  const odd = Number.parseFloat(value);
+  return Number.isFinite(odd) && odd > 1 ? odd : null;
+}
+
+function impliedProbabilityFromOdd(odd) {
+  const parsed = parseOdd(odd);
+  return parsed ? round1(100 / parsed) : null;
+}
+
+function getMarketOdd(marketType, odds = {}) {
+  if (!odds) return null;
+
+  const aliases = {
+    home_win: ['home', 'home_win', '1'],
+    draw: ['draw', 'x'],
+    away_win: ['away', 'away_win', '2'],
+    double_chance_1X: ['double_chance_1x', 'doubleChance1X', '1x'],
+    double_chance_X2: ['double_chance_x2', 'doubleChanceX2', 'x2'],
+    over_15: ['over15', 'over_15', 'over1_5'],
+    over_25: ['over25', 'over_25', 'over2_5'],
+    under_25: ['under25', 'under_25', 'under2_5'],
+    btts_yes: ['btts_yes', 'bttsYes'],
+    btts_no: ['btts_no', 'bttsNo']
+  };
+
+  for (const key of aliases[marketType] || []) {
+    const odd = parseOdd(odds[key]);
+    if (odd) return odd;
+  }
+
+  // Approximation useful until a richer odds provider is connected.
+  if (marketType === 'double_chance_1X') {
+    const home = impliedProbabilityFromOdd(odds.home);
+    const draw = impliedProbabilityFromOdd(odds.draw);
+    return home && draw ? round2(100 / Math.min(95, home + draw)) : null;
+  }
+
+  if (marketType === 'double_chance_X2') {
+    const away = impliedProbabilityFromOdd(odds.away);
+    const draw = impliedProbabilityFromOdd(odds.draw);
+    return away && draw ? round2(100 / Math.min(95, away + draw)) : null;
+  }
+
+  return null;
+}
+
+function enrichMarketWithPricing(market, realOdds) {
+  const bookmakerOdd = getMarketOdd(market.type, realOdds);
+  const impliedProb = impliedProbabilityFromOdd(bookmakerOdd);
+  const valueEdge = impliedProb ? round1(evaluateValueEdge(market.prob, impliedProb)) : null;
+
+  return {
+    ...market,
+    fairOdds: market.estimatedOdds,
+    bookmakerOdd,
+    impliedProb,
+    valueEdge,
+    hasBookmakerPrice: bookmakerOdd !== null,
+    valueLabel: valueEdge === null
+      ? 'unpriced'
+      : valueEdge >= 8
+        ? 'strong_value'
+        : valueEdge >= 3
+          ? 'thin_value'
+          : valueEdge <= -8
+            ? 'bad_price'
+            : 'fair_price'
+  };
+}
+
+function computeDataQuality({ formAvailable, apiPred, h2h, realOdds, injuries, standings, homeNext, awayNext, match }) {
+  let score = 35;
+  const components = [];
+
+  if (formAvailable) { score += 18; components.push('form'); }
+  if (apiPred) { score += 14; components.push('api_prediction'); }
+  if (h2h.length >= 3) { score += 8; components.push('h2h'); }
+  if (realOdds) { score += 12; components.push('bookmaker_odds'); }
+  if (injuries.length > 0) { score += 6; components.push('injuries'); }
+  if (standings.length > 0) { score += 5; components.push('standings'); }
+  if (homeNext || awayNext) { score += 5; components.push('calendar'); }
+  if (match.referee) { score += 2; components.push('referee'); }
+  if (match.weather) { score += 3; components.push('weather'); }
+  if (match.expected_lineups) { score += 5; components.push('expected_lineups'); }
+  if (match.xg_metrics) { score += 8; components.push('advanced_xg'); }
+
+  return {
+    score: clamp(score, 0, 100),
+    level: score >= 75 ? 'excellent' : score >= 58 ? 'good' : score >= 42 ? 'limited' : 'poor',
+    components,
+    missing: [
+      !formAvailable ? 'form' : null,
+      !apiPred ? 'api_prediction' : null,
+      h2h.length < 3 ? 'h2h' : null,
+      !realOdds ? 'bookmaker_odds' : null,
+      injuries.length === 0 ? 'injuries' : null,
+      standings.length === 0 ? 'standings' : null,
+      !match.expected_lineups ? 'expected_lineups' : null,
+      !match.xg_metrics ? 'advanced_xg' : null,
+      !match.weather ? 'weather' : null
+    ].filter(Boolean)
+  };
+}
+
+function computeAiPriorityScore({ scoring, match }) {
+  const best = scoring.bestMarket;
+  const valueBonus = typeof best?.valueEdge === 'number'
+    ? clamp(best.valueEdge, -10, 18)
+    : 0;
+  const contradictionBonus = scoring.warnings.length >= 2 ? 8 : 0;
+  const leagueBonus = clamp((match.league_score || 0) / 10, 0, 10);
+
+  return Math.round(
+    scoring.confidenceScore * 0.38 +
+    scoring.dataQuality.score * 0.24 +
+    (best?.prob || 0) * 0.22 +
+    valueBonus * 0.7 +
+    contradictionBonus +
+    leagueBonus
+  );
+}
+
 /**
  * ══════════════════════════════════════════════════════
  * MAIN SCORING FUNCTION v3
@@ -120,8 +255,16 @@ export function scoreMatch(match) {
   const homeDef = parseFloat(match.home_goals_conceded || 1.2);
   const awayDef = parseFloat(match.away_goals_conceded || 1.2);
 
-  const homeXg = calcXg(homeAtt, awayDef, true);   // Home attacks vs Away defense
-  const awayXg = calcXg(awayAtt, homeDef, false);   // Away attacks vs Home defense
+  let homeXg = calcXg(homeAtt, awayDef, true);   // Home attacks vs Away defense
+  let awayXg = calcXg(awayAtt, homeDef, false);   // Away attacks vs Home defense
+
+  if (match.xg_metrics) {
+    const advancedHomeXg = parseFloat(match.xg_metrics.home_xg_for ?? match.xg_metrics.homeXg);
+    const advancedAwayXg = parseFloat(match.xg_metrics.away_xg_for ?? match.xg_metrics.awayXg);
+    if (Number.isFinite(advancedHomeXg) && advancedHomeXg > 0) homeXg = advancedHomeXg;
+    if (Number.isFinite(advancedAwayXg) && advancedAwayXg > 0) awayXg = advancedAwayXg;
+    signals.push('xG avance disponible');
+  }
 
   // ── 2. Poisson Score Matrix ───────────────────────
   const poisson = buildScoreMatrix(homeXg, awayXg);
@@ -250,6 +393,22 @@ export function scoreMatch(match) {
 
   // ── 6. Compute Composite Score (0-100) ────────────
   // Base: Poisson probability mapped to 0-100
+  const dataQuality = computeDataQuality({
+    formAvailable,
+    apiPred,
+    h2h,
+    realOdds,
+    injuries,
+    standings,
+    homeNext,
+    awayNext,
+    match
+  });
+
+  if (dataQuality.level === 'poor') {
+    warnings.push(`Qualite de donnees faible (${dataQuality.score}/100)`);
+  }
+
   let compositeScore = poisson.homeWinProb;
 
   // Adjust with form if available (max ±15 points)
@@ -367,12 +526,27 @@ export function scoreMatch(match) {
     });
   }
 
-  // Sort by probability descending
+  const pricedMarkets = markets
+    .map(m => enrichMarketWithPricing(m, realOdds))
+    .sort((a, b) => {
+      const aEdge = a.valueEdge ?? 0;
+      const bEdge = b.valueEdge ?? 0;
+      const aValueRank = a.valueLabel === 'bad_price' ? -20 : aEdge;
+      const bValueRank = b.valueLabel === 'bad_price' ? -20 : bEdge;
+      if (bValueRank !== aValueRank) return bValueRank - aValueRank;
+      return b.prob - a.prob;
+    });
+
+  // Sort by probability descending for legacy consumers.
   markets.sort((a, b) => b.prob - a.prob);
 
   // ── 8. Best Market Selection ──────────────────────
   // Pick the market with the highest probability that also has reasonable odds (>= 1.30)
-  const bestMarket = markets.find(m => m.estimatedOdds >= 1.30) || markets[0] || null;
+  const bestMarket = pricedMarkets.find(m =>
+    m.estimatedOdds >= 1.30 &&
+    m.valueLabel !== 'bad_price' &&
+    (m.valueEdge === null || m.valueEdge >= -6)
+  ) || pricedMarkets.find(m => m.estimatedOdds >= 1.30) || pricedMarkets[0] || null;
 
   // ── 9. Compute Confidence Level ───────────────────
   let confidenceScore = 0;
@@ -386,6 +560,7 @@ export function scoreMatch(match) {
   if (formAvailable) confidenceScore += 15;
   if (apiPred) confidenceScore += 15;
   if (h2h.length >= 3) confidenceScore += 10;
+  confidenceScore += Math.round((dataQuality.score - 35) * 0.18);
 
   // 9c. Market strength
   if (bestMarket?.prob >= 60) confidenceScore += 15;
@@ -405,6 +580,9 @@ export function scoreMatch(match) {
     if (bestMarket?.type === 'away_win' && realOdds.away < (100/poisson.awayWinProb) * 0.9) confidenceScore += 10;
   }
 
+  if (bestMarket?.valueEdge >= 8) confidenceScore += 8;
+  if (bestMarket?.valueLabel === 'bad_price') confidenceScore -= 15;
+
   // 9g. Penalty for Rotation Risk (Champions League)
   if (bestMarket?.type === 'home_win' || bestMarket?.type === 'double_chance_1X') confidenceScore -= homeFatiguePenalty;
   if (bestMarket?.type === 'away_win' || bestMarket?.type === 'double_chance_X2') confidenceScore -= awayFatiguePenalty;
@@ -417,17 +595,25 @@ export function scoreMatch(match) {
     passed: false,
     reason: '',
     minConfidence: 40,
-    minProb: 48
+    minProb: 48,
+    minDataQuality: 38
   };
+
+  const needsClearWinner = ['home_win', 'away_win'].includes(bestMarket?.type);
+  const minClarityGap = needsClearWinner ? 8 : 4;
 
   if (!bestMarket) {
     qualityGate.reason = 'Aucun marché viable identifié';
+  } else if (dataQuality.score < qualityGate.minDataQuality) {
+    qualityGate.reason = `Donnees insuffisantes (${dataQuality.score} < ${qualityGate.minDataQuality})`;
   } else if (bestMarket.prob < qualityGate.minProb) {
     qualityGate.reason = `Probabilité trop faible (${bestMarket.prob}% < ${qualityGate.minProb}%)`;
   } else if (confidenceScore < qualityGate.minConfidence) {
     qualityGate.reason = `Confiance insuffisante (${confidenceScore} < ${qualityGate.minConfidence})`;
-  } else if (clarityGap < 8) {
-    qualityGate.reason = `Match trop incertain (écart ${clarityGap}% entre issues)`;
+  } else if (clarityGap < minClarityGap) {
+    qualityGate.reason = `Match trop incertain (ecart ${clarityGap}% entre issues)`;
+  } else if (bestMarket.valueLabel === 'bad_price') {
+    qualityGate.reason = `Cote marche defavorable (${bestMarket.valueEdge}% edge)`;
   } else {
     qualityGate.passed = true;
     qualityGate.reason = 'Tous les critères de qualité satisfaits';
@@ -440,6 +626,11 @@ export function scoreMatch(match) {
   if (poisson.awayWinProb >= 50) signals.push(`Extérieur favori (${poisson.awayWinProb}%)`);
   if (homeXg >= 2.0) signals.push(`xG domicile élevé (${homeXg.toFixed(2)})`);
   if (awayXg >= 1.8) signals.push(`xG extérieur élevé (${awayXg.toFixed(2)})`);
+
+  const aiPriorityScore = computeAiPriorityScore({
+    scoring: { bestMarket, confidenceScore, dataQuality, warnings },
+    match
+  });
 
   return {
     // Core probabilities
@@ -460,13 +651,15 @@ export function scoreMatch(match) {
     awayForm: awayFormScore,
 
     // Market recommendations
-    markets,
+    markets: pricedMarkets,
     bestMarket,
 
     // Quality
     confidenceScore,
     confidence,
     qualityGate,
+    dataQuality,
+    aiPriorityScore,
 
     // Signals
     signals,
@@ -518,6 +711,9 @@ export function rankMatchesByQuality(matches) {
     .map(m => ({ match: m, scoring: scoreMatch(m) }))
     .filter(({ scoring }) => scoring.qualityGate.passed)
     .sort((a, b) => {
+      if (b.scoring.aiPriorityScore !== a.scoring.aiPriorityScore) {
+        return b.scoring.aiPriorityScore - a.scoring.aiPriorityScore;
+      }
       // Primary: confidence score
       if (b.scoring.confidenceScore !== a.scoring.confidenceScore) {
         return b.scoring.confidenceScore - a.scoring.confidenceScore;

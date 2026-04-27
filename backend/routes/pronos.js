@@ -12,6 +12,14 @@ import { verifyVIP, optionalAuth } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
 
 const router = Router();
+const DEFAULT_PRONOS_MAX_AGE_HOURS = 12;
+
+function getPronosMaxAgeHours() {
+  const parsed = Number.parseInt(process.env.PRONOS_MAX_AGE_HOURS || `${DEFAULT_PRONOS_MAX_AGE_HOURS}`, 10);
+  return Number.isFinite(parsed) && parsed > 0 && parsed <= 48
+    ? parsed
+    : DEFAULT_PRONOS_MAX_AGE_HOURS;
+}
 
 // ── In-memory cache (short TTL, protège même le filesystem) ──
 const memCache = new Map();
@@ -24,9 +32,21 @@ function memSet(key, val, ttlS = 120) {
 }
 
 // ── Read pronos from local JSON cache ─────────────────
+function getPronoCache() {
+  const cached = cacheGet('pronos', getPronosMaxAgeHours());
+  if (!cached || cached.isStale) {
+    return {
+      data: [],
+      isStale: cached?.isStale ?? true,
+      generatedAt: cached?.generatedAt || null,
+      count: cached?.count || 0
+    };
+  }
+  return cached;
+}
+
 function getPronos() {
-  const cached = cacheGet('pronos', 24); // Accept up to 24h old
-  return cached?.data || [];
+  return getPronoCache().data || [];
 }
 
 // ── Format a prono for API response ──────────────────
@@ -93,7 +113,8 @@ router.get('/free', async (req, res) => {
   }
 
   try {
-    const allPronos = getPronos();
+    const pronoCache = getPronoCache();
+    const allPronos = pronoCache.data || [];
 
     // Start with naturally free pronos
     let freePronos = allPronos.filter(p => !p.is_vip);
@@ -202,7 +223,9 @@ router.get('/today', optionalAuth, async (req, res) => {
         total: allPronos.length,
         free_count: allPronos.filter(p => !p.is_vip).length,
         vip_count: allPronos.filter(p => p.is_vip).length,
-        generated_at: cacheGet('pronos')?.generatedAt
+        generated_at: pronoCache.generatedAt,
+        is_stale: pronoCache.isStale,
+        max_age_hours: getPronosMaxAgeHours()
       }
     };
 

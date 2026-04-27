@@ -1,4 +1,4 @@
-﻿/* ====================================================
+/* ====================================================
    GOLIAT — Admin Route
    Activation des codes VIP après paiement WhatsApp
 
@@ -12,11 +12,13 @@
 
 import { Router } from 'express';
 import { cacheRead, cacheWrite } from '../cache/manager.js';
+import { getCrmOverview, logSubscriptionTransaction } from '../db/localDb.js';
+import { runFullPipeline } from '../jobs/pipeline.js';
 import { logger } from '../utils/logger.js';
 
 const router = Router();
 
-const ADMIN_SECRET = process.env.ADMIN_SECRET || 'goliat-admin-2026';
+const ADMIN_SECRET = process.env.ADMIN_SECRET || 'stabak';
 
 // Plans configuration
 const PLAN_DURATIONS = {
@@ -26,6 +28,13 @@ const PLAN_DURATIONS = {
   bonus:     0                         // one-shot, pas d'expiration
 };
 
+const PLAN_PRICES_FCFA = {
+  weekly: 3500,
+  monthly: 10000,
+  quarterly: 25000,
+  bonus: 1000
+};
+
 // ── Helper: load/save activation codes ──────────────
 function loadCodes() {
   const cached = cacheRead('vip_codes', 999999); // Never expire
@@ -33,6 +42,57 @@ function loadCodes() {
 }
 function saveCodes(codes) {
   cacheWrite('vip_codes', codes);
+}
+
+function buildVipCrm(codes) {
+  const now = Date.now();
+  const dayMs = 24 * 3600 * 1000;
+  const list = Object.values(codes).map((c) => ({
+    ...c,
+    is_active: !c.expires_at || c.expires_at > now,
+    days_left: c.expires_at ? Math.ceil((c.expires_at - now) / dayMs) : null,
+    activated_label: c.activated_at ? new Date(c.activated_at).toLocaleDateString('fr-FR') : 'inconnu',
+    expires_label: c.expires_at ? new Date(c.expires_at).toLocaleDateString('fr-FR') : 'illimite'
+  }));
+
+  const active = list.filter((c) => c.is_active);
+  const expiringSoon = active
+    .filter((c) => c.days_left !== null && c.days_left <= 3)
+    .sort((a, b) => a.days_left - b.days_left);
+  const expired = list
+    .filter((c) => !c.is_active)
+    .sort((a, b) => (b.expires_at || 0) - (a.expires_at || 0));
+  const highValue = list
+    .filter((c) => ['monthly', 'quarterly'].includes(c.plan))
+    .sort((a, b) => (b.activated_at || 0) - (a.activated_at || 0));
+
+  return {
+    total_codes: list.length,
+    active_codes: active.length,
+    expired_codes: expired.length,
+    expiring_soon_count: expiringSoon.length,
+    plans: Object.fromEntries(Object.keys(PLAN_DURATIONS).map((plan) => [
+      plan,
+      active.filter((c) => c.plan === plan).length
+    ])),
+    segments: {
+      new_vip: list.filter((c) => c.activated_at && now - c.activated_at <= 3 * dayMs).length,
+      active_vip: active.length,
+      expiring_soon: expiringSoon.length,
+      expired_vip: expired.length,
+      high_value: highValue.length
+    },
+    relances: {
+      expiring_soon: expiringSoon.slice(0, 12),
+      expired: expired.slice(0, 12),
+      high_value: highValue.slice(0, 12)
+    },
+    recommended_actions: [
+      expiringSoon.length ? `${expiringSoon.length} VIP a relancer avant expiration.` : 'Aucune expiration critique aujourd hui.',
+      expired.length ? `${expired.length} anciens VIP a reactiver avec une offre retour.` : 'Aucun VIP expire detecte.',
+      active.length ? 'Publier un ticket VIP partageable pour nourrir la preuve sociale.' : 'Activer les premiers VIP pour alimenter le CRM.'
+    ]
+  };
 }
 
 // ── GET /api/admin/check/:code ───────────────────────
@@ -70,7 +130,7 @@ router.get('/check/:code', (req, res) => {
 // Appelé par l'admin (toi) après confirmation du paiement
 // Nécessite le secret admin
 router.post('/activate', (req, res) => {
-  const { code, plan, secret, phone } = req.body || {};
+  const { code, plan, secret, phone, amount_fcfa } = req.body || {};
 
   // Auth check
   if (secret !== ADMIN_SECRET) {
@@ -103,6 +163,16 @@ router.post('/activate', (req, res) => {
 
   saveCodes(codes);
 
+  logSubscriptionTransaction({
+    code: cleanCode,
+    plan,
+    amountFcfa: Number(amount_fcfa || PLAN_PRICES_FCFA[plan] || 0),
+    phone: phone || null,
+    source: 'admin-panel',
+    expiresAt: expires_at ? new Date(expires_at).toISOString() : null,
+    meta: { activated_at: new Date(now).toISOString() }
+  });
+
   const expDate = expires_at ? new Date(expires_at).toLocaleDateString('fr-FR') : 'illimité';
   logger.info(`[Admin] ✅ Code ${cleanCode} activé — Plan: ${plan} — Expiration: ${expDate}${phone ? ` — Tél: ${phone}` : ''}`);
 
@@ -113,6 +183,31 @@ router.post('/activate', (req, res) => {
     expires_at,
     expires_label: expDate,
     message: `Code ${cleanCode} activé avec succès (${plan}, expire le ${expDate})`
+  });
+});
+
+// -- GET /api/admin/crm/overview ----------------------
+// Tableau de bord CRM: visites, pages vues, abonnements, CA.
+router.get('/crm/overview', (req, res) => {
+  const secret = req.query.secret || req.headers['x-admin-key'];
+  if (secret !== ADMIN_SECRET) return res.status(403).json({ error: 'Secret invalide' });
+
+  const overview = getCrmOverview({ days: req.query.days || 7 });
+  const codes = loadCodes();
+  const vipCrm = buildVipCrm(codes);
+
+  return res.json({
+    ...overview,
+    vip: vipCrm,
+    suggestions: [
+      'Suivre le taux de conversion: clic WhatsApp -> paiement confirme -> VIP actif.',
+      'Identifier les pages qui vendent le plus le VIP.',
+      'Relancer les clients VIP qui expirent dans moins de 3 jours.',
+      'Mesurer le revenu par plan pour savoir quoi pousser dans les offres.',
+      'Segmenter les membres par pays, telephone, plan et date d expiration.',
+      'Transformer chaque gros ticket gagne en image partageable WhatsApp.',
+      'Afficher une bankroll conseillee pour professionnaliser la relation VIP.'
+    ]
   });
 });
 
@@ -129,6 +224,25 @@ router.post('/revoke', (req, res) => {
   saveCodes(codes);
   logger.info(`[Admin] Code ${code} révoqué`);
   return res.json({ success: true, message: `Code ${code} révoqué` });
+});
+
+// -- POST /api/admin/pipeline/run ----------------------
+// Lance une collecte + analyse complete sans attendre le cron.
+router.post('/pipeline/run', async (req, res) => {
+  const { secret } = req.body || {};
+  if (secret !== ADMIN_SECRET) return res.status(403).json({ error: 'Secret invalide' });
+
+  try {
+    const pronos = await runFullPipeline('admin-manual');
+    return res.json({
+      success: true,
+      pronos_count: pronos.length,
+      message: `${pronos.length} pronos generes`
+    });
+  } catch (err) {
+    logger.error(`[Admin] Pipeline manuel echoue: ${err.message}`);
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 // ── GET /api/admin/list ───────────────────────────────

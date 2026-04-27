@@ -25,6 +25,14 @@ function getGroqClient() {
 
 // ── Maximum free pronos ──────────────────────────────
 const MAX_FREE_PRONOS = 4;
+const DEFAULT_MAX_GROQ_MATCHES = 6;
+
+function getGroqMatchLimit() {
+  const parsed = Number.parseInt(process.env.GROQ_MAX_MATCHES_PER_RUN || `${DEFAULT_MAX_GROQ_MATCHES}`, 10);
+  return Number.isFinite(parsed) && parsed > 0 && parsed <= 20
+    ? parsed
+    : DEFAULT_MAX_GROQ_MATCHES;
+}
 
 // ── System prompt: strict, expert-level ──────────────
 const SYSTEM_PROMPT = `Tu es un analyste quantitatif professionnel de paris sportifs pour la plateforme GOLIAT.
@@ -98,11 +106,14 @@ Cote réelle Victoire Extérieur: @${scoring.bookmakerOdds.away} (Notre cote Poi
 ═══ MEILLEUR MARCHÉ IDENTIFIÉ PAR GOLIAT ═══
 ${bestMkt ? `${bestMkt.label} — ${bestMkt.prob}% (cote estimée ~${bestMkt.estimatedOdds})` : 'Aucun marché dominant'}
 Force: ${bestMkt?.strength || 'N/A'} | Confiance globale: ${scoring.confidence} (${scoring.confidenceScore}/100)
+Qualite donnees: ${scoring.dataQuality?.score ?? 'N/A'}/100 (${scoring.dataQuality?.level || 'N/A'})
+Prix marche: ${bestMkt?.bookmakerOdd ? `bookmaker @${bestMkt.bookmakerOdd}, proba implicite ${bestMkt.impliedProb}%, edge modele ${bestMkt.valueEdge}%` : 'non disponible'}
+Priorite IA interne: ${scoring.aiPriorityScore}/100
 Signaux: ${scoring.signals.join(' | ') || 'aucun'}
 Alertes: ${scoring.warnings.join(' | ') || 'aucune'}
 
 ═══ MARCHÉS ALTERNATIFS DÉTECTÉS ═══
-${scoring.markets.slice(0, 4).map(m => `• ${m.label}: ${m.prob}% (~@${m.estimatedOdds})`).join('\n')}
+${scoring.markets.slice(0, 4).map(m => `- ${m.label}: ${m.prob}% (fair @${m.estimatedOdds}${m.bookmakerOdd ? ` | book @${m.bookmakerOdd} | edge ${m.valueEdge}%` : ''})`).join('\n')}
 
 INSTRUCTIONS:
 1. Évalue si ce match mérite un pronostic. Si les données sont trop pauvres ou le match trop incertain, renvoie { "skip": true, "reason": "..." }
@@ -171,10 +182,20 @@ JSON requis:
     if (scoring.confidence === 'low' && result.fiabilite > 70) result.fiabilite = 65;
     if (scoring.confidence === 'medium' && result.fiabilite > 82) result.fiabilite = 78;
 
-    return result;
+    return {
+      ...result,
+      analysis_source: 'groq',
+      analysis_model: 'llama-3.3-70b-versatile'
+    };
   } catch (err) {
     logger.warn(`[Groq] Erreur ${match.home_team} vs ${match.away_team}:`, err.message);
-    return buildFallbackAnalysis(match, scoring);
+    const fallback = buildFallbackAnalysis(match, scoring);
+    if (!fallback) return null;
+    return {
+      ...fallback,
+      analysis_source: 'fallback',
+      analysis_error: err.message
+    };
   }
 }
 
@@ -189,12 +210,12 @@ function buildFallbackAnalysis(match, scoring) {
     cote_estimee: bestMkt.estimatedOdds,
     fiabilite: Math.min(70, Math.round(bestMkt.prob * 0.85)),
     categorie: bestMkt.prob >= 65 ? 'Safe' : 'Value',
-    analyse_courte: `Analyse algorithmique basée sur le modèle Poisson GOLIAT. ${scoring.signals.slice(0, 2).join('. ')}.`,
-    analyse_vip: `Modèle Poisson: xG ${match.home_team} ${scoring.homeXg} | ${match.away_team} ${scoring.awayXg}. ${scoring.signals.join('. ')}. ${scoring.warnings.length > 0 ? 'Attention: ' + scoring.warnings.join('. ') : ''}`,
+    analyse_courte: `GOLIAT retient ce marche car plusieurs signaux convergent. ${scoring.signals.slice(0, 2).join('. ')}.`,
+    analyse_vip: `Lecture GOLIAT: xG ${match.home_team} ${scoring.homeXg} | ${match.away_team} ${scoring.awayXg}. ${scoring.signals.join('. ')}. ${scoring.warnings.length > 0 ? 'Points de vigilance: ' + scoring.warnings.join('. ') : ''}`,
     marche_alternatif: scoring.markets[1]?.label || 'Double Chance',
     cote_marche_alternatif: scoring.markets[1]?.estimatedOdds || 1.40,
     risque: scoring.confidence === 'high' ? 'Faible' : 'Moyen',
-    valeur_detectee: bestMkt.strength === 'strong',
+    valeur_detectee: bestMkt.strength === 'strong' || bestMkt.valueEdge >= 3,
     tags_marketing: [match.league_name, bestMkt.type.replace('_', ' ')],
     conseil_bankroll: scoring.confidence === 'high' ? '3% de mise' : '2% de mise'
   };
@@ -219,6 +240,7 @@ export async function runDailyAnalysis() {
 
   if (!process.env.GROQ_API_KEY) {
     logger.error('[Groq] GROQ_API_KEY manquant !');
+    cacheWrite('pronos', []);
     return [];
   }
 
@@ -260,10 +282,15 @@ export async function runDailyAnalysis() {
   // ── STEP 2: Groq analysis on quality matches only ──
   logger.info(`[Pipeline] 🧠 Étape 2: Analyse Groq de ${ranked.length} matchs qualifiés...`);
 
+  const groqLimit = getGroqMatchLimit();
+  const candidates = ranked.slice(0, groqLimit);
+  const budgetSkipped = Math.max(0, ranked.length - candidates.length);
+  logger.info(`[Pipeline] Budget Groq: ${candidates.length}/${ranked.length} matchs qualifies seront analyses.`);
+
   const pronos = [];
   let freeCount = 0, vipCount = 0, skipped = 0;
 
-  for (const { match, scoring } of ranked) {
+  for (const { match, scoring } of candidates) {
     const analysis = await analyzeMatchWithGroq(match, scoring);
 
     if (!analysis || analysis.skip) {
@@ -301,8 +328,18 @@ export async function runDailyAnalysis() {
         poisson: scoring.poisson,
         confidence: scoring.confidence,
         confidenceScore: scoring.confidenceScore,
+        dataQuality: scoring.dataQuality,
+        aiPriorityScore: scoring.aiPriorityScore,
+        valueEdge: scoring.bestMarket?.valueEdge ?? null,
+        bookmakerOdd: scoring.bestMarket?.bookmakerOdd ?? null,
         bestMarket: scoring.bestMarket,
         topScores: scoring.topScores
+      },
+      internal_audit: {
+        analysis_source: analysis.analysis_source || 'unknown',
+        analysis_model: analysis.analysis_model || null,
+        analysis_error: analysis.analysis_error || null,
+        groq_budget_limit: groqLimit
       },
       generated_at: new Date().toISOString()
     };
@@ -311,7 +348,7 @@ export async function runDailyAnalysis() {
     if (isVip) vipCount++; else freeCount++;
 
     const badge = isVip ? '[VIP]' : '[FREE]';
-    const confBadge = `[conf:${scoring.confidenceScore}]`;
+    const confBadge = `[conf:${scoring.confidenceScore}|dq:${scoring.dataQuality.score}|ai:${scoring.aiPriorityScore}]`;
     logger.info(`  ✓ ${match.home_team} vs ${match.away_team} → ${analysis.prono_principal} @${analysis.cote_estimee} (${analysis.fiabilite}%) ${badge} ${confBadge}`);
 
     // Optional Firestore save
@@ -334,9 +371,7 @@ export async function runDailyAnalysis() {
   }
 
   // ── Save to local cache (PRIMARY) ──────────────────
-  if (pronos.length > 0) {
-    cacheWrite('pronos', pronos);
-  }
+  cacheWrite('pronos', pronos);
 
   const duration = ((Date.now() - start) / 1000).toFixed(1);
   logger.info(`[Pipeline] ═══════════════════════════════════════════`);
@@ -344,6 +379,7 @@ export async function runDailyAnalysis() {
   logger.info(`[Pipeline]    ${pronos.length} pronos publiés en ${duration}s`);
   logger.info(`[Pipeline]    ${freeCount} gratuits (max ${MAX_FREE_PRONOS}) | ${vipCount} VIP`);
   logger.info(`[Pipeline]    ${skipped} matchs skippés par l'IA (pas assez convaincants)`);
+  logger.info(`[Pipeline]    ${budgetSkipped} matchs gardes en No Bet interne pour economiser Groq`);
   logger.info(`[Pipeline]    ${rejected} matchs rejetés au Quality Gate`);
   logger.info(`[Pipeline] ═══════════════════════════════════════════`);
 

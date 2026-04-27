@@ -9,6 +9,12 @@
 
 import axios from 'axios';
 import { cacheWrite, cacheRead } from '../cache/manager.js';
+import {
+  extractConsensusOdds,
+  fetchOddsEventsForSport,
+  getMaxSportKeysPerRun,
+  getSportKeyForLeague
+} from './theOddsApiClient.js';
 import { logger } from '../utils/logger.js';
 
 const API_KEY = process.env.API_FOOTBALL_KEY;
@@ -149,7 +155,9 @@ async function fetchOdds(fixtureId) {
     return {
       home: parseFloat(matchWinner.values.find(v => v.value === 'Home')?.odd || 0),
       draw: parseFloat(matchWinner.values.find(v => v.value === 'Draw')?.odd || 0),
-      away: parseFloat(matchWinner.values.find(v => v.value === 'Away')?.odd || 0)
+      away: parseFloat(matchWinner.values.find(v => v.value === 'Away')?.odd || 0),
+      provider: 'api-football',
+      fetched_at: new Date().toISOString()
     };
   } catch (err) {
     return null;
@@ -218,6 +226,48 @@ function getLeagueScore(leagueId) {
   return LEAGUE_SCORES[leagueId] || 0;
 }
 
+async function enrichMatchesWithTheOddsApi(matches) {
+  if (!process.env.THE_ODDS_API_KEY && !process.env.ODDS_API_KEY) {
+    return matches;
+  }
+
+  const sportKeys = [...new Set(matches.map(m => m.odds_sport_key).filter(Boolean))]
+    .slice(0, getMaxSportKeysPerRun());
+
+  if (!sportKeys.length) {
+    logger.info('[TheOddsAPI] Aucune ligue eligible pour le mapping odds.');
+    return matches;
+  }
+
+  const commenceTimeFrom = new Date(Date.now() - 2 * 3600 * 1000).toISOString();
+  const commenceTimeTo = new Date(Date.now() + 2 * 86400000).toISOString();
+  const eventsBySport = new Map();
+
+  for (const sportKey of sportKeys) {
+    const events = await fetchOddsEventsForSport(sportKey, { commenceTimeFrom, commenceTimeTo });
+    eventsBySport.set(sportKey, events);
+    await rateLimitPause(250);
+  }
+
+  let enriched = 0;
+  for (const match of matches) {
+    const events = eventsBySport.get(match.odds_sport_key) || [];
+    const odds = extractConsensusOdds(match, events);
+    if (!odds) continue;
+
+    match.bookmaker_odds = odds;
+    match.the_odds_api_odds = odds;
+    match.external_sources = {
+      ...(match.external_sources || {}),
+      odds: 'the-odds-api'
+    };
+    enriched++;
+  }
+
+  logger.info(`[TheOddsAPI] ${enriched}/${matches.length} matchs enrichis avec consensus bookmaker`);
+  return matches;
+}
+
 // ── Build a match object from API fixture ─────────────
 async function buildMatchObject(fixture, leagueScore) {
   const leagueId = fixture.league.id;
@@ -229,7 +279,7 @@ async function buildMatchObject(fixture, leagueScore) {
   logger.info(`  📊 Enrichissement: ${fixture.teams.home.name} vs ${fixture.teams.away.name}...`);
 
   // Fetch all enrichment data in parallel
-  const [homeStats, awayStats, predictions, h2h, injuries, odds, standings, homeNextMatch, awayNextMatch] = await Promise.all([
+  const [homeStats, awayStats, predictions, h2h, injuries, apiFootballOdds, standings, homeNextMatch, awayNextMatch] = await Promise.all([
     fetchTeamStats(homeTeamId, leagueId, season),
     fetchTeamStats(awayTeamId, leagueId, season),
     fetchPredictions(fixtureId),
@@ -245,6 +295,8 @@ async function buildMatchObject(fixture, leagueScore) {
   const flag = fixture.league.flag
     ? fixture.league.flag
     : '🌍';
+
+  const oddsSportKey = getSportKeyForLeague(leagueId);
 
   return {
     fixture_id: fixtureId,
@@ -272,7 +324,18 @@ async function buildMatchObject(fixture, leagueScore) {
     api_predictions: predictions,
     h2h: h2h,
     injuries: injuries,
-    bookmaker_odds: odds,
+    bookmaker_odds: apiFootballOdds,
+    api_football_odds: apiFootballOdds,
+    odds_sport_key: oddsSportKey,
+    xg_metrics: null,
+    expected_lineups: null,
+    weather: null,
+    external_sources: {
+      odds: apiFootballOdds ? apiFootballOdds.provider : null,
+      xg: null,
+      expected_lineups: null,
+      weather: null
+    },
     standings: standings,
     home_next_match: homeNextMatch,
     away_next_match: awayNextMatch,
@@ -365,6 +428,8 @@ export async function fetchMatches() {
   allMatches.sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
 
   // ── Save to local cache (PRIMARY) ──────────────────
+  await enrichMatchesWithTheOddsApi(allMatches);
+
   cacheWrite('matches', allMatches);
 
   // ── Try Firestore (SECONDARY, optional) ────────────

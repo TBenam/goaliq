@@ -16,6 +16,7 @@ import pronosRouter from './routes/pronos.js';
 import authRouter from './routes/auth.js';
 import notifRouter from './routes/notifications.js';
 import adminRouter from './routes/admin.js';
+import analyticsRouter from './routes/analytics.js';
 import { logger } from './utils/logger.js';
 
 const app = express();
@@ -87,6 +88,7 @@ app.use((req, res, next) => {
 app.use('/api/pronos', pronosRouter);
 app.use('/api/auth', authLimiter, authRouter);
 app.use('/api/notifications', notifRouter);
+app.use('/api/analytics', analyticsRouter);
 app.use('/api/admin', adminRouter); // Panel admin activation VIP
 
 /* ── Health check ────────────────────────────────────── */
