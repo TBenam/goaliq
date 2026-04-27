@@ -236,7 +236,9 @@ async function fetchAllFixturesByDate(date) {
 
 // ── Score a league by known priority ─────────────────
 function getLeagueScore(leagueId) {
-  return LEAGUE_SCORES[leagueId] || 0;
+  // If in list, return score. If not, return a base score (30) so it's not ignored
+  // but stays below the highly-followed leagues.
+  return LEAGUE_SCORES[leagueId] || 30; 
 }
 
 async function enrichMatchesWithTheOddsApi(matches) {
@@ -411,31 +413,43 @@ export async function fetchMatches() {
     return [];
   }
 
-  // ── Filter: only known leagues (score > 0) + not started ─────
+  // ── Filter: allow all leagues but prioritize known ones ─────
   const eligibleFixtures = allFixtures
     .filter(f => {
       const score = getLeagueScore(f.league.id);
       const status = f.fixture.status.short;
       // Only collect matches NOT YET STARTED
-      return score > 0 && ['NS', 'TBD'].includes(status);
+      return score >= 30 && ['NS', 'TBD'].includes(status);
     })
     .sort((a, b) => getLeagueScore(b.league.id) - getLeagueScore(a.league.id))
-    .slice(0, 50); // Increased from 15 to allow for the requested 15-20 VIP matches
+    .slice(0, 100); // Increased to 100 to reach the 15-20 VIP matches goal
 
-  logger.info(`[Collector] ${eligibleFixtures.length} matchs éligibles (ligues prioritaires, pas encore commencés)`);
+  logger.info(`[Collector] ${eligibleFixtures.length} matchs éligibles (toutes ligues confondues, prioritaires en tête)`);
 
   // ── Fetch stats + predictions + H2H for each match ─
+  // Using chunks of 5 in parallel to stay within reasonable rate limits
   const allMatches = [];
-  for (const fixture of eligibleFixtures) {
-    const leagueScore = getLeagueScore(fixture.league.id);
-    const match = await buildMatchObject(fixture, leagueScore);
-    allMatches.push(match);
+  const CHUNK_SIZE = 5;
+  
+  for (let i = 0; i < eligibleFixtures.length; i += CHUNK_SIZE) {
+    const chunk = eligibleFixtures.slice(i, i + CHUNK_SIZE);
+    logger.info(`[Collector] Enrichment lot ${Math.floor(i/CHUNK_SIZE) + 1}/${Math.ceil(eligibleFixtures.length/CHUNK_SIZE)}...`);
+    
+    const results = await Promise.all(
+      chunk.map(fixture => buildMatchObject(fixture, getLeagueScore(fixture.league.id)))
+    );
+    
+    const enrichedInChunk = results.filter(Boolean);
+    allMatches.push(...enrichedInChunk);
 
-    const predInfo = match.api_predictions?.advice ? ` — API: "${match.api_predictions.advice}"` : '';
-    const h2hInfo = match.h2h?.length ? ` — H2H: ${match.h2h.length} matchs` : '';
-    logger.info(`  ✓ [${match.league_name}] ${match.home_team} vs ${match.away_team}${predInfo}${h2hInfo}`);
-
-    await rateLimitPause(500); // Rate limit between enrichments (4 calls per match)
+    enrichedInChunk.forEach(match => {
+      const predInfo = match.api_predictions?.advice ? ` — API: "${match.api_predictions.advice}"` : '';
+      const h2hInfo = match.h2h?.length ? ` — H2H: ${match.h2h.length} matchs` : '';
+      logger.info(`  ✓ [${match.league_name}] ${match.home_team} vs ${match.away_team}${predInfo}${h2hInfo}`);
+    });
+    
+    // Tiny pause between chunks to be nice to the API
+    await rateLimitPause(800);
   }
 
   // Sort by kickoff time
