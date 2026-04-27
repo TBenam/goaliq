@@ -611,7 +611,7 @@ export function scoreMatch(match) {
     reason: '',
     minConfidence: 35, // Reverted to 35% as requested
     minProb: 44,       // Reverted to 44%
-    minDataQuality: 35 
+    minDataQuality: 25 // Lowered from 35 to allow world leagues with less history
   };
 
   const needsClearWinner = ['home_win', 'away_win'].includes(bestMarket?.type);

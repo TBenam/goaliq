@@ -422,7 +422,7 @@ export async function fetchMatches() {
       return score >= 30 && ['NS', 'TBD'].includes(status);
     })
     .sort((a, b) => getLeagueScore(b.league.id) - getLeagueScore(a.league.id))
-    .slice(0, 100); // Increased to 100 to reach the 15-20 VIP matches goal
+    .slice(0, 150); // Increased to 150 to reach the 15-20 VIP matches goal
 
   logger.info(`[Collector] ${eligibleFixtures.length} matchs éligibles (toutes ligues confondues, prioritaires en tête)`);
 
@@ -430,6 +430,7 @@ export async function fetchMatches() {
   // Using chunks of 5 in parallel to stay within reasonable rate limits
   const allMatches = [];
   const CHUNK_SIZE = 5;
+  const MAX_SCAN_LIMIT = 150;
   
   for (let i = 0; i < eligibleFixtures.length; i += CHUNK_SIZE) {
     const chunk = eligibleFixtures.slice(i, i + CHUNK_SIZE);

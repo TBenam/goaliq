@@ -282,7 +282,7 @@ export async function runDailyAnalysis() {
 
   // ── STEP 2: Separate VIP (Groq) and Free (Algorithmic) ──
   const VIP_TARGET = 18;
-  const FREE_TARGET = 5;
+  const FREE_TARGET = 7; // Increased slightly
 
   const vipCandidates = ranked.slice(0, VIP_TARGET);
   const freeCandidates = ranked.slice(VIP_TARGET, VIP_TARGET + FREE_TARGET);
@@ -291,6 +291,7 @@ export async function runDailyAnalysis() {
 
   const pronos = [];
   let freeCount = 0, vipCount = 0, skipped = 0;
+  let hasNewProno = false; // Fix: define hasNewProno here
 
   // --- Process VIP (Groq AI) ---
   for (const { match, scoring } of vipCandidates) {
@@ -303,6 +304,7 @@ export async function runDailyAnalysis() {
     const prono = buildPronoObject(match, scoring, analysis, true);
     pronos.push(prono);
     vipCount++;
+    hasNewProno = true; // Mark as new
     
     logger.info(`  ✓ [VIP] ${match.home_team} vs ${match.away_team} (IA)`);
     await tryFirestoreSave(prono);
@@ -317,6 +319,7 @@ export async function runDailyAnalysis() {
     const prono = buildPronoObject(match, scoring, analysis, false);
     pronos.push(prono);
     freeCount++;
+    hasNewProno = true; // Mark as new
 
     logger.info(`  ✓ [FREE] ${match.home_team} vs ${match.away_team} (Prioritaire)`);
     await tryFirestoreSave(prono);
