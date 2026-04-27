@@ -136,7 +136,7 @@ router.get('/check/:code', (req, res) => {
 // ── POST /api/admin/activate ─────────────────────────
 // Appelé par l'admin (toi) après confirmation du paiement
 // Nécessite le secret admin
-router.post('/activate', (req, res) => {
+router.post('/activate', async (req, res) => {
   const { code, plan, secret, phone, amount_fcfa } = req.body || {};
 
   // Auth check
