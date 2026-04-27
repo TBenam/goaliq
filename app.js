@@ -528,10 +528,21 @@ function formatKickoffTime(kickoff) {
   const date = new Date(kickoff);
   if (Number.isNaN(date.getTime())) return '--:--';
 
-  return date.toLocaleTimeString('fr-FR', {
-    hour: '2-digit',
-    minute: '2-digit'
-  });
+  const time = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const today = new Date();
+  
+  const dateStr = date.toLocaleString('en-CA', { timeZone: 'Africa/Douala' }).split(',')[0];
+  const todayStr = today.toLocaleString('en-CA', { timeZone: 'Africa/Douala' }).split(',')[0];
+  
+  const dateObj = new Date(dateStr);
+  const todayObj = new Date(todayStr);
+  const diffDays = Math.round((dateObj.getTime() - todayObj.getTime()) / 86400000);
+  
+  if (diffDays === 0) return `Aujourd'hui à ${time}`;
+  if (diffDays === 1) return `Demain à ${time}`;
+  
+  const day = date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+  return `${day} à ${time}`;
 }
 
 function mapPronoForUi(prono = {}, options = {}) {
@@ -1686,6 +1697,20 @@ const Views = {
 
   /* ---- ADMIN CRM ---- */
   admin() {
+    const isAdmin = localStorage.getItem('goliat_admin') === 'stabak';
+    if (!isAdmin) {
+      return `
+        <div class="view px-4 py-4 admin-view">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:18px;">
+            <div>
+              <h1 style="font-size:1.9rem;font-weight:900;letter-spacing:-0.05em;line-height:1.1;">🔒 Acces Restreint</h1>
+              <p style="font-size:0.82rem;color:var(--on-surface-variant);margin-top:5px;">Zone securisee. Veuillez vous connecter.</p>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
     const secret = localStorage.getItem('goliat_admin_secret') || '';
     const crm = DATA.crm || {};
     const totals = crm.totals || {};
@@ -2614,6 +2639,28 @@ const PWA = {
    EVENTS — Delegation and bindings
    ============================================================ */
 function bindEvents() {
+  // -- Logo Easter Egg (5 clicks for admin)
+  const logo = document.querySelector('.app-logo');
+  if (logo) {
+    let clickCount = 0;
+    let clickTimer = null;
+    logo.addEventListener('click', () => {
+      clickCount++;
+      clearTimeout(clickTimer);
+      if (clickCount >= 5) {
+        clickCount = 0;
+        const pwd = prompt('Mot de passe Admin :');
+        if (pwd === 'stabak') {
+          localStorage.setItem('goliat_admin', pwd);
+          Router.navigate('admin');
+        } else if (pwd !== null) {
+          alert('Accès refusé');
+        }
+      }
+      clickTimer = setTimeout(() => { clickCount = 0; }, 2000);
+    });
+  }
+
   // Bottom navigation
   document.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', () => {

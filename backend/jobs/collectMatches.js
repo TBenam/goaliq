@@ -378,8 +378,9 @@ export async function fetchMatches() {
   logger.info('[Collector] 🚀 Démarrage collecte API-Football v3...');
 
   // Collect today + tomorrow
-  const today = new Date().toISOString().split('T')[0];
-  const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+  const options = { timeZone: 'Africa/Douala' };
+  const today = new Date().toLocaleString('en-CA', options).split(',')[0];
+  const tomorrow = new Date(Date.now() + 86400000).toLocaleString('en-CA', options).split(',')[0];
 
   logger.info(`[Collector] Dates: ${today} → ${tomorrow}`);
 

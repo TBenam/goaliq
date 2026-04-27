@@ -199,7 +199,8 @@ router.get('/today', optionalAuth, async (req, res) => {
   }
 
   try {
-    const allPronos = getPronos();
+    const pronoCache = getPronoCache();
+    const allPronos = pronoCache.data || [];
 
     // VIP status check
     const isVip = req.user ? await checkUserVIP(req.user.uid) : false;
@@ -210,6 +211,10 @@ router.get('/today', optionalAuth, async (req, res) => {
         // Show just enough to create FOMO — no real prono
         id: p.fixture_id,
         match: p.match,
+        home_team: p.home_team,
+        away_team: p.away_team,
+        home_team_logo: p.home_team_logo,
+        away_team_logo: p.away_team_logo,
         competition: p.competition,
         kickoff: p.kickoff,
         heure: p.heure,
