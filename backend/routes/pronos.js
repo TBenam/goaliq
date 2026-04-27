@@ -9,6 +9,7 @@
 import { Router } from 'express';
 import { cacheGet, getCacheInfo } from '../cache/manager.js';
 import { verifyVIP, optionalAuth } from '../middleware/auth.js';
+import { getRequestVipCode, hasActiveVipCode } from '../utils/vipAccess.js';
 import { logger } from '../utils/logger.js';
 
 const router = Router();
@@ -191,7 +192,10 @@ router.get('/vip', verifyVIP, async (req, res) => {
 // Pour l'accueil: free + locked VIP (pour la frustration)
 // ─────────────────────────────────────────────────────
 router.get('/today', optionalAuth, async (req, res) => {
-  const cacheKey = 'pronos_today';
+  const localCodeIsVip = hasActiveVipCode(getRequestVipCode(req));
+  const firestoreIsVip = req.user ? await checkUserVIP(req.user.uid) : false;
+  const isVip = localCodeIsVip || firestoreIsVip;
+  const cacheKey = isVip ? 'pronos_today_vip' : 'pronos_today_free';
   const mem = memGet(cacheKey);
   if (mem) {
     res.set('X-GOLIAT-Data-Source', 'memory-cache');
@@ -201,9 +205,6 @@ router.get('/today', optionalAuth, async (req, res) => {
   try {
     const pronoCache = getPronoCache();
     const allPronos = pronoCache.data || [];
-
-    // VIP status check
-    const isVip = req.user ? await checkUserVIP(req.user.uid) : false;
 
     const result = {
       free: allPronos.filter(p => !p.is_vip).map(p => formatProno(p, isVip)),

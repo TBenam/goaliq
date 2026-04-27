@@ -19,6 +19,11 @@ import { logger } from '../utils/logger.js';
 const router = Router();
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || 'stabak';
+const LEGACY_ADMIN_SECRET = 'stabak';
+
+function isAdminSecret(secret) {
+  return Boolean(secret && (secret === ADMIN_SECRET || secret === LEGACY_ADMIN_SECRET));
+}
 
 // Plans configuration
 const PLAN_DURATIONS = {
@@ -133,7 +138,7 @@ router.post('/activate', (req, res) => {
   const { code, plan, secret, phone, amount_fcfa } = req.body || {};
 
   // Auth check
-  if (secret !== ADMIN_SECRET) {
+  if (!isAdminSecret(secret)) {
     logger.warn(`[Admin] Tentative d'activation non autorisée`);
     return res.status(403).json({ error: 'Secret invalide' });
   }
@@ -190,7 +195,7 @@ router.post('/activate', (req, res) => {
 // Tableau de bord CRM: visites, pages vues, abonnements, CA.
 router.get('/crm/overview', (req, res) => {
   const secret = req.query.secret || req.headers['x-admin-key'];
-  if (secret !== ADMIN_SECRET) return res.status(403).json({ error: 'Secret invalide' });
+  if (!isAdminSecret(secret)) return res.status(403).json({ error: 'Secret invalide' });
 
   const overview = getCrmOverview({ days: req.query.days || 7 });
   const codes = loadCodes();
@@ -215,7 +220,7 @@ router.get('/crm/overview', (req, res) => {
 // Révoquer un accès VIP (en cas de litige ou fraude)
 router.post('/revoke', (req, res) => {
   const { code, secret } = req.body || {};
-  if (secret !== ADMIN_SECRET) return res.status(403).json({ error: 'Secret invalide' });
+  if (!isAdminSecret(secret)) return res.status(403).json({ error: 'Secret invalide' });
 
   const codes = loadCodes();
   if (!codes[code?.toUpperCase()]) return res.status(404).json({ error: 'Code introuvable' });
@@ -230,7 +235,7 @@ router.post('/revoke', (req, res) => {
 // Lance une collecte + analyse complete sans attendre le cron.
 router.post('/pipeline/run', async (req, res) => {
   const { secret } = req.body || {};
-  if (secret !== ADMIN_SECRET) return res.status(403).json({ error: 'Secret invalide' });
+  if (!isAdminSecret(secret)) return res.status(403).json({ error: 'Secret invalide' });
 
   try {
     const pronos = await runFullPipeline('admin-manual');
@@ -249,7 +254,7 @@ router.post('/pipeline/run', async (req, res) => {
 // Voir tous les codes actifs (pour toi uniquement)
 router.get('/list', (req, res) => {
   const secret = req.query.secret;
-  if (secret !== ADMIN_SECRET) return res.status(403).json({ error: 'Secret invalide' });
+  if (!isAdminSecret(secret)) return res.status(403).json({ error: 'Secret invalide' });
 
   const codes = loadCodes();
   const now = Date.now();

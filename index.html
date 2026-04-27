@@ -69,9 +69,12 @@
 
   <!-- Custom Design System -->
   <link rel="stylesheet" href="styles.css" />
+  <script>
+    document.documentElement.classList.add('icons-loading');
+  </script>
 </head>
 
-<body>
+<body class="app-booting">
   <!-- Splash Screen (only on PWA standalone) -->
   <div id="splash" aria-hidden="true">
     <span class="splash-logo">Goliat</span>
@@ -139,8 +142,36 @@
 
     <!-- App Content (views render here) -->
     <main id="app-content" role="main" tabindex="-1">
+      <div id="app-boot-skeleton" aria-hidden="true">
+        <div class="boot-card skeleton" style="height: 176px; margin-bottom: 20px;"></div>
+        <div class="boot-row" style="margin-bottom: 16px;">
+          <div class="skeleton" style="height: 14px; width: 88px;"></div>
+          <div class="skeleton" style="height: 14px; width: 56px;"></div>
+        </div>
+        <div class="boot-card skeleton" style="height: 132px; margin-bottom: 16px;"></div>
+        <div class="boot-card skeleton" style="height: 132px;"></div>
+      </div>
       <div id="app"></div>
     </main>
+  </div>
+
+  <div id="bottom-nav-skeleton" aria-hidden="true">
+    <div class="bottom-nav-skeleton-item">
+      <div class="skeleton nav-skeleton-icon"></div>
+      <div class="skeleton nav-skeleton-label"></div>
+    </div>
+    <div class="bottom-nav-skeleton-item">
+      <div class="skeleton nav-skeleton-icon"></div>
+      <div class="skeleton nav-skeleton-label"></div>
+    </div>
+    <div class="bottom-nav-skeleton-item">
+      <div class="skeleton nav-skeleton-icon"></div>
+      <div class="skeleton nav-skeleton-label"></div>
+    </div>
+    <div class="bottom-nav-skeleton-item">
+      <div class="skeleton nav-skeleton-icon"></div>
+      <div class="skeleton nav-skeleton-label"></div>
+    </div>
   </div>
 
   <!-- Bottom Navigation -->

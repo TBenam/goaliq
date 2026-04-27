@@ -5,6 +5,7 @@
 
 import { auth, db } from '../firebase/admin.js';
 import { logger } from '../utils/logger.js';
+import { getActiveVipCodeEntry, getRequestVipCode } from '../utils/vipAccess.js';
 
 /**
  * Verify Firebase ID Token from Authorization header
@@ -38,9 +39,20 @@ export async function verifyVIP(req, res, next) {
     if (!req.user) return; // Already sent error
 
     try {
+      const localVipEntry = getActiveVipCodeEntry(getRequestVipCode(req));
       const userDoc = await db.collection('users').doc(req.user.uid).get();
 
       if (!userDoc.exists) {
+        if (localVipEntry) {
+          req.userDoc = {
+            uid: req.user.uid,
+            is_vip: true,
+            plan: localVipEntry.plan,
+            vip_code: localVipEntry.code,
+            vip_expires_at: localVipEntry.expires_at ? new Date(localVipEntry.expires_at) : null
+          };
+          return next();
+        }
         return res.status(403).json({ error: 'Utilisateur introuvable', code: 'USER_NOT_FOUND' });
       }
 
@@ -50,7 +62,7 @@ export async function verifyVIP(req, res, next) {
       const now = new Date();
       const vipExpiry = userData.vip_expires_at?.toDate?.();
 
-      if (!userData.is_vip || (vipExpiry && vipExpiry < now)) {
+      if ((!userData.is_vip || (vipExpiry && vipExpiry < now)) && !localVipEntry) {
         // Auto-deactivate expired VIP
         if (userData.is_vip && vipExpiry) {
           await userDoc.ref.update({ is_vip: false });
@@ -62,7 +74,15 @@ export async function verifyVIP(req, res, next) {
         });
       }
 
-      req.userDoc = userData;
+      req.userDoc = localVipEntry
+        ? {
+            ...userData,
+            is_vip: true,
+            plan: localVipEntry.plan,
+            vip_code: localVipEntry.code,
+            vip_expires_at: localVipEntry.expires_at ? new Date(localVipEntry.expires_at) : null
+          }
+        : userData;
       next();
     } catch (err) {
       logger.error('[Auth] Erreur vérification VIP:', err.message);

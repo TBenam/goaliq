@@ -528,11 +528,11 @@ function formatKickoffTime(kickoff) {
   const date = new Date(kickoff);
   if (Number.isNaN(date.getTime())) return '--:--';
 
-  const time = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const time = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Douala' });
   const today = new Date();
   
-  const dateStr = date.toLocaleString('en-CA', { timeZone: 'Africa/Douala' }).split(',')[0];
-  const todayStr = today.toLocaleString('en-CA', { timeZone: 'Africa/Douala' }).split(',')[0];
+  const dateStr = date.toLocaleDateString('en-CA', { timeZone: 'Africa/Douala' });
+  const todayStr = today.toLocaleDateString('en-CA', { timeZone: 'Africa/Douala' });
   
   const dateObj = new Date(dateStr);
   const todayObj = new Date(todayStr);
@@ -541,7 +541,7 @@ function formatKickoffTime(kickoff) {
   if (diffDays === 0) return `Aujourd'hui à ${time}`;
   if (diffDays === 1) return `Demain à ${time}`;
   
-  const day = date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+  const day = date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', timeZone: 'Africa/Douala' });
   return `${day} à ${time}`;
 }
 
@@ -550,10 +550,13 @@ function mapPronoForUi(prono = {}, options = {}) {
   const hideDetails = options.hideDetails ?? false;
   const matchLabel = prono.match || [prono.home_team, prono.away_team].filter(Boolean).join(' vs ') || 'Match à confirmer';
   const odds = prono.cote ?? prono.cote_estimee;
+  const kickoff = prono.kickoff || prono.fixture_date || prono.date || null;
+  const kickoffLabel = kickoff ? formatKickoffTime(kickoff) : (prono.heure || '--:--');
 
   return {
-    id: prono.fixture_id || prono.id || `${matchLabel}-${prono.kickoff || prono.heure || ''}`,
+    id: prono.fixture_id || prono.id || `${matchLabel}-${kickoff || prono.heure || ''}`,
     fixture_id: prono.fixture_id || prono.id || null,
+    kickoff,
     competition: prono.competition || prono.league_name || 'Pronostic du jour',
     match: matchLabel,
     equipe1: prono.equipe1 || '⚽',
@@ -562,7 +565,7 @@ function mapPronoForUi(prono = {}, options = {}) {
     away_team_logo: prono.away_team_logo || null,
     prono: hideDetails ? 'Verrouillé' : (prono.prono || prono.prono_principal || 'Analyse en cours'),
     cote: hideDetails ? '?.??' : (odds ?? '--'),
-    heure: prono.heure || formatKickoffTime(prono.kickoff),
+    heure: kickoffLabel,
     fiabilite: Number.isFinite(Number(prono.fiabilite)) ? Number(prono.fiabilite) : 0,
     categorie: prono.categorie || (locked ? 'VIP' : 'Pronostic'),
     description: prono.description || prono.analyse_courte || '',
@@ -797,6 +800,7 @@ const API = {
     const token = await FirebaseClient.getIdToken();
     const headers = {
       'Content-Type': 'application/json',
+      'X-Vip-Code': getVipCode(),
       ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       ...options.headers
     };
@@ -885,7 +889,7 @@ const API = {
         locked: false
       }));
     } catch (err) {
-      if (err.code === 'VIP_REQUIRED') return null; // User not VIP
+      if (['VIP_REQUIRED', 'MISSING_TOKEN', 'INVALID_TOKEN'].includes(err.code)) return null; // User not VIP or local-code mode
       console.warn('[API] Fallback pronos VIP:', err.message);
       return DATA.pronos_vip;
     }
@@ -913,7 +917,7 @@ const API = {
 
   // ── Activate VIP via code ──────────────────────────
   async activateVip(code) {
-    const result = await this.fetch('/auth/activate-vip', {
+    let result = await this.fetch('/auth/activate-vip', {
       method: 'POST',
       body: JSON.stringify({ code })
     });
@@ -997,7 +1001,7 @@ API.loadVipProno = async function () {
     const pronos = await this.fetch('/pronos/vip');
     return (pronos || []).map((p) => mapPronoForUi(p, { locked: false }));
   } catch (err) {
-    if (err.code === 'VIP_REQUIRED') return null;
+    if (['VIP_REQUIRED', 'MISSING_TOKEN', 'INVALID_TOKEN'].includes(err.code)) return null;
     console.warn('[API] Fallback pronos VIP:', err.message);
     return DATA.pronos_vip;
   }
@@ -1099,16 +1103,18 @@ const C = {
   // Match card (free)
   matchCard(prono) {
     const { home, away } = splitMatchLabel(prono.match);
-    const countdownHtml = Enhancements.buildCountdownBadge(prono.kickoff || prono.heure);
+    const kickoffLabel = prono.heure || formatKickoffTime(prono.kickoff);
+    const countdownHtml = prono.kickoff ? Enhancements.buildCountdownBadge(prono.kickoff) : '';
     const liveStatus = Enhancements.getLiveStatus(prono);
     const risk = getRiskProfile(prono);
     return `
       <div class="match-card mb-4">
         <div class="match-header">
           <span class="badge badge-primary">${prono.competition}</span>
-          <div style="display:flex;align-items:center;gap:6px;">
+          <div class="match-time-stack">
             ${liveStatus ? `<span class="live-badge">${liveStatus}</span>` : ''}
-            ${countdownHtml || `<span style="font-size:0.78rem;font-weight:600;color:var(--outline);">${prono.heure}</span>`}
+            ${countdownHtml}
+            <span class="match-date-label">${kickoffLabel}</span>
           </div>
         </div>
         <div class="match-teams">
@@ -2652,6 +2658,7 @@ function bindEvents() {
         const pwd = prompt('Mot de passe Admin :');
         if (pwd === 'stabak') {
           localStorage.setItem('goliat_admin', pwd);
+          localStorage.setItem('goliat_admin_secret', pwd);
           Router.navigate('admin');
         } else if (pwd !== null) {
           alert('Accès refusé');
@@ -2757,12 +2764,31 @@ function hideSplash() {
 /* ============================================================
    INIT — Boot the application
    ============================================================ */
+function waitForMaterialIcons(timeout = 1200) {
+  if (!document.fonts?.load) return Promise.resolve();
+
+  return Promise.race([
+    document.fonts.load('24px "Material Symbols Outlined"'),
+    new Promise(resolve => setTimeout(resolve, timeout))
+  ]).catch(() => undefined);
+}
+
+function releaseBootUi() {
+  document.documentElement.classList.remove('icons-loading');
+  document.body.classList.remove('app-booting');
+}
+
 function init() {
   // 1. Init state (streak, VIP)
   STATE.init();
 
   // 2. Render initial view with static data
   Router.init();
+
+  Promise.all([
+    waitForMaterialIcons(),
+    new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+  ]).finally(releaseBootUi);
 
   // 3. Bind all events
   bindEvents();
@@ -2858,6 +2884,12 @@ window.activateVipCode = async function (code) {
     UI.showToast(`❌ ${err.message || 'Code invalide'}`);
   }
 };
+
+window.API = API;
+window.App = App;
+window.Modal = Modal;
+window.Router = Router;
+window.UI = UI;
 
 // Boot when DOM is ready
 if (document.readyState === 'loading') {

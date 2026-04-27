@@ -46,7 +46,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Key']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Key', 'X-Vip-Code']
 }));
 
 /* ── Body parsing ────────────────────────────────────── */

@@ -95,6 +95,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+html.icons-loading .material-symbols-outlined { opacity: 0; }
 img { display: block; max-width: 100%; border: none; }
 button { cursor: pointer; font-family: var(--font); border: none; outline: none; }
 a { text-decoration: none; color: inherit; }
@@ -115,6 +116,30 @@ input, textarea, select { font-family: var(--font); }
   overflow-y: auto;
   padding-bottom: calc(80px + var(--safe-area-bottom));
   scroll-behavior: smooth;
+}
+
+#app-boot-skeleton {
+  display: none;
+  padding: 16px;
+}
+
+body.app-booting #app {
+  visibility: hidden;
+}
+
+body.app-booting #app-boot-skeleton {
+  display: block;
+}
+
+.boot-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.boot-card {
+  border-radius: var(--radius-2xl);
 }
 
 #app-content::-webkit-scrollbar { display: none; }
@@ -220,6 +245,55 @@ input, textarea, select { font-family: var(--font); }
   display: flex;
   justify-content: space-around;
   align-items: center;
+}
+
+#bottom-nav-skeleton {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(100%, var(--app-shell-width));
+  max-width: var(--app-shell-width);
+  z-index: 201;
+  background: rgba(255, 255, 255, 0.92);
+  border-top: 1px solid rgba(187, 202, 191, 0.2);
+  border-radius: 24px 24px 0 0;
+  box-shadow: 0 -8px 40px rgba(25, 28, 29, 0.08);
+  padding: 10px 16px max(16px, var(--safe-area-bottom));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+body.app-booting #bottom-nav {
+  opacity: 0;
+  pointer-events: none;
+}
+
+body.app-booting #bottom-nav-skeleton {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+}
+
+.bottom-nav-skeleton-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 56px;
+}
+
+.nav-skeleton-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+}
+
+.nav-skeleton-label {
+  width: 46px;
+  height: 9px;
+  border-radius: 999px;
 }
 
 .nav-item {
@@ -994,7 +1068,25 @@ input, textarea, select { font-family: var(--font); }
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   margin-bottom: 14px;
+}
+
+.match-time-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  min-width: max-content;
+  text-align: right;
+}
+
+.match-date-label {
+  color: var(--outline);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.15;
+  white-space: nowrap;
 }
 
 .match-teams {
