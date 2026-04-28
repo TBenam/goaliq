@@ -1047,9 +1047,18 @@ const STATE = {
     localStorage.setItem('goliat_streak', this.streak);
   },
 
-  setVip(value) {
+  setVip(value, plan, expiresAt) {
     this.isVip = value;
-    localStorage.setItem('goliat_vip', value);
+    localStorage.setItem('goliat_vip', value ? 'true' : 'false');
+    if (value && plan) localStorage.setItem('goliat_vip_plan', plan);
+    if (value && expiresAt) localStorage.setItem('goliat_vip_expires', expiresAt);
+    // Stop annoying popups for VIP users
+    if (value && STATE._gainPopupTimer) {
+      clearInterval(STATE._gainPopupTimer);
+      STATE._gainPopupTimer = null;
+      const popup = document.getElementById('gain-popup');
+      if (popup) popup.style.display = 'none';
+    }
   }
 };
 
@@ -1067,10 +1076,10 @@ const Router = {
     history.replaceState(null, '', `#${view}`);
     API.trackEvent('page_view', { page: view });
 
-    // Show go-vip button only on non-vip views
+    // Show go-vip button — always visible for non-VIP, hidden for VIP
     const goVipBtn = document.getElementById('go-vip-btn');
     if (goVipBtn) {
-      goVipBtn.style.display = (STATE.isVip && view !== 'accueil') ? 'none' : 'flex';
+      goVipBtn.style.display = STATE.isVip ? 'none' : 'flex';
     }
   },
 
@@ -1392,7 +1401,8 @@ const Views = {
         <!-- Match Principal (full card) — rendered dynamically from live data -->
         ${buildFeaturedPronoCard()}
 
-        <!-- Bonus Prono Flash -->
+        <!-- Bonus Prono Flash — hidden for VIP users -->
+        ${STATE.isVip ? '' : `
         <div style="background:linear-gradient(135deg,rgba(254,166,25,0.12),rgba(254,166,25,0.04));border:2px solid rgba(254,166,25,0.35);border-radius:var(--radius-xl);padding:20px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:14px;margin-bottom:24px;position:relative;overflow:hidden;">
           <div style="position:absolute;top:-20px;right:-20px;width:100px;height:100px;background:rgba(254,166,25,0.08);border-radius:50%;filter:blur(30px);"></div>
           <div style="width:52px;height:52px;background:var(--gradient-secondary);border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(254,166,25,0.3);">
@@ -1408,12 +1418,13 @@ const Views = {
             <div style="font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--outline);margin-bottom:4px;">Accès unique</div>
             <div style="font-size:1.6rem;font-weight:900;color:var(--on-surface);letter-spacing:-0.04em;">1 000 <span style="font-size:1rem;font-weight:700;">FCFA</span></div>
           </div>
-          <button class="btn-secondary" style="width:100%;justify-content:center;" onclick="window.open('${buildWaLink('bonus')}','_blank')">
+          <button class="btn-secondary" style="width:100%;justify-content:center;" onclick="window.open('${buildWaLink('bonus')}','_blank');Modal.onPlanClick('bonus')">
             <span class="material-symbols-outlined icon-sm icon-filled">lock_open</span>
             DÉBLOQUER CE PRONO — 1 000 FCFA
           </button>
           <div style="font-size:0.65rem;color:var(--outline);font-weight:600;">Paiement sécurisé · Mobile Money · Résultat immédiat</div>
         </div>
+        `}
 
         <!-- Pronos gratuits section -->
         <div class="section-header mb-4">
@@ -1424,9 +1435,25 @@ const Views = {
           : `<div style="padding:20px;text-align:center;color:var(--on-surface-variant);font-size:0.85rem;">Aucun prono gratuit pour le moment.</div>`
         }
 
-        <!-- VIP locked pronos -->
+        <!-- Big VIP CTA — only for non-VIP users -->
+        ${STATE.isVip ? '' : `
+        <div style="margin:24px 0;background:linear-gradient(135deg,#10b981,#059669);border-radius:var(--radius-xl);padding:24px;text-align:center;position:relative;overflow:hidden;">
+          <div style="position:absolute;top:-30px;right:-30px;width:120px;height:120px;background:rgba(255,255,255,0.1);border-radius:50%;"></div>
+          <div style="position:absolute;bottom:-20px;left:-20px;width:80px;height:80px;background:rgba(255,255,255,0.08);border-radius:50%;"></div>
+          <div style="font-size:2rem;margin-bottom:8px;">👑</div>
+          <div style="font-weight:900;font-size:1.2rem;color:#fff;margin-bottom:6px;letter-spacing:-0.02em;">Passez au VIP maintenant</div>
+          <div style="font-size:0.8rem;color:rgba(255,255,255,0.85);margin-bottom:16px;line-height:1.5;">Accédez à TOUS les pronostics IA, les coupons combinés, les scores exacts et les analyses exclusives.</div>
+          <button class="btn-primary" style="width:100%;justify-content:center;background:#fff;color:#059669;font-weight:900;font-size:1rem;padding:14px;" onclick="Modal.open()">
+            <span class="material-symbols-outlined icon-sm">workspace_premium</span>
+            DEVENIR VIP — À PARTIR DE 3 500 FCFA
+          </button>
+          <div style="margin-top:10px;font-size:0.68rem;color:rgba(255,255,255,0.65);font-weight:600;">✓ Activation instantanée · ✓ Paiement Mobile Money · ✓ Support 24/7</div>
+        </div>
+        `}
+
+        <!-- VIP pronos -->
         <div class="section-header mb-4" style="margin-top:8px;">
-          <h2 class="section-title">Exclusivités VIP</h2>
+          <h2 class="section-title">${STATE.isVip ? 'Vos Pronos VIP' : 'Exclusivités VIP'}</h2>
           <span class="badge badge-gold">👑 VIP</span>
         </div>
         <div id="vip-pronos-list">
@@ -1442,7 +1469,8 @@ const Views = {
           }
         </div>
 
-        <!-- Gain potentiel sticky card -->
+        <!-- Gain potentiel sticky card — only for non-VIP -->
+        ${STATE.isVip ? '' : `
         <div style="background:var(--on-surface);color:var(--surface);border-radius:var(--radius-xl);padding:18px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
           <div>
             <div style="font-size:0.62rem;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;opacity:0.6;margin-bottom:4px;">Gain Potentiel aujourd'hui</div>
@@ -1450,6 +1478,7 @@ const Views = {
           </div>
           <button class="btn-primary" onclick="Modal.open()">VIP</button>
         </div>
+        `}
 
         <!-- Full historique -->
         <div class="section-header mb-4" style="margin-top:28px;">
@@ -1861,6 +1890,20 @@ const Views = {
           </button>
         </div>
 
+        <!-- PENDING PAYMENTS — File d'attente des paiements -->
+        <div class="card-elevated" style="padding:16px;margin-bottom:16px;">
+          <div class="section-header" style="margin-bottom:12px;">
+            <h2 class="section-title">💰 Paiements en attente</h2>
+            <button class="btn-ghost" style="font-size:0.7rem;padding:4px 8px;" onclick="UI.loadPendingPayments()">
+              <span class="material-symbols-outlined icon-sm">refresh</span>
+              Actualiser
+            </button>
+          </div>
+          <div id="pending-payments-list">
+            <div class="admin-empty" style="font-size:0.78rem;">Cliquez sur "Actualiser" pour charger les paiements en attente.</div>
+          </div>
+        </div>
+
         <div class="card-elevated" style="padding:16px;margin-bottom:16px;">
           <div class="section-header" style="margin-bottom:12px;">
             <h2 class="section-title">Acces VIP</h2>
@@ -2041,11 +2084,19 @@ const Modal = {
   // Appelé quand l'user clique sur un plan WhatsApp
   onPlanClick(planId) {
     Modal.trackClick(planId);
-    // Affiche la zone d'activation après 3s (temps d'ouvrir WhatsApp)
+    // Register the payment intent on the server so admin sees it
+    try {
+      fetch(`${API_BASE}/admin/register-intent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: getVipCode(), plan: planId })
+      }).catch(() => {}); // Non-blocking
+    } catch(e) { /* ignore */ }
+    // Affiche la zone d'activation après 2s
     setTimeout(() => {
       const zone = document.getElementById('activation-zone');
       if (zone) zone.style.display = 'block';
-    }, 3000);
+    }, 2000);
   },
 
   // Poll le backend toutes les 5s pour vérifier si le code est activé
@@ -2054,12 +2105,17 @@ const Modal = {
     Modal._pollTimer = setInterval(Modal.checkActivation, 5000);
   },
 
+  _pollStartTime: null,
+
   async checkActivation() {
     const code = getVipCode();
     const statusEl = document.getElementById('activation-status');
     const btn = document.getElementById('activate-btn');
 
-    if (statusEl) statusEl.textContent = '⏳ Vérification en cours...';
+    if (!Modal._pollStartTime) Modal._pollStartTime = Date.now();
+    const waitMinutes = Math.round((Date.now() - Modal._pollStartTime) / 60000);
+
+    if (statusEl) statusEl.innerHTML = '<span style="animation:pulse-badge 1.5s infinite;">⏳</span> Vérification en cours...';
     if (btn) btn.disabled = true;
 
     try {
@@ -2068,19 +2124,20 @@ const Modal = {
 
       if (data.active) {
         clearInterval(Modal._pollTimer);
-        // ✅ Accès VIP accordé !
-        STATE.setVip(true);
-        localStorage.setItem('goliat_vip_plan', data.plan);
-        localStorage.setItem('goliat_vip_expires', data.expires_at);
+        Modal._pollStartTime = null;
+        // ✅ Accès VIP accordé — persist everywhere
+        STATE.setVip(true, data.plan, data.expires_at);
 
         Modal.close();
         UI.showToast('🎉 Accès VIP activé ! Bienvenue dans l\'élite.', 5000);
-        App.render(STATE.currentView); // Refresh view
+        App.render(STATE.currentView);
       } else {
         if (statusEl) {
-          statusEl.textContent = data.status === 'pending'
-            ? '⏳ Paiement non encore confirmé. Réessayez dans quelques minutes.'
-            : `❌ ${data.message}`;
+          if (waitMinutes < 1) {
+            statusEl.innerHTML = '⏳ Votre demande a bien été envoyée. L\'admin la traite sous quelques minutes.';
+          } else {
+            statusEl.innerHTML = `⏳ En attente depuis <strong>${waitMinutes} min</strong>. L'admin va activer votre code dès réception du paiement. Ne fermez pas cette page.`;
+          }
         }
         if (btn) btn.disabled = false;
       }
@@ -2210,6 +2267,73 @@ const UI = {
       await UI.loadCrm();
     } catch (err) {
       UI.showToast(err.message || 'Activation impossible.');
+    }
+  },
+
+  async loadPendingPayments() {
+    const secret = UI.getAdminSecret();
+    if (!secret) return;
+    
+    const listEl = document.getElementById('pending-payments-list');
+    if (!listEl) return;
+    
+    listEl.innerHTML = '<div class="admin-empty">Chargement...</div>';
+    
+    try {
+      const res = await fetch(`${API_BASE}/admin/pending?secret=${secret}`);
+      const data = await res.json();
+      
+      if (!data.pending || data.pending.length === 0) {
+        listEl.innerHTML = '<div class="admin-empty">Aucun paiement en attente.</div>';
+        return;
+      }
+      
+      listEl.innerHTML = data.pending.map(p => `
+        <div class="admin-list-row" style="background: ${p.status === 'waiting' ? 'rgba(254,166,25,0.05)' : 'rgba(16,185,129,0.05)'}; border-left: 3px solid ${p.status === 'waiting' ? 'var(--secondary)' : 'var(--primary)'};">
+          <div style="flex:1;">
+            <div style="font-family:monospace;font-weight:800;font-size:0.9rem;">${p.code} <span style="font-size:0.7rem;font-family:sans-serif;color:var(--outline);">${p.plan}</span></div>
+            <div style="font-size:0.7rem;color:var(--on-surface-variant);margin-top:2px;">
+              ${p.status === 'waiting' ? `Attente: <strong>${p.minutes_waiting} min</strong>` : `✅ Activé le ${new Date(p.activated_at).toLocaleTimeString()}`}
+            </div>
+          </div>
+          ${p.status === 'waiting' ? `
+            <button class="btn-primary" style="padding:6px 12px;font-size:0.75rem;min-height:unset;" onclick="UI.adminQuickActivate('${p.code}')">
+              ✅ Valider
+            </button>
+          ` : `
+            <span class="material-symbols-outlined icon-sm" style="color:var(--primary);">check_circle</span>
+          `}
+        </div>
+      `).join('');
+    } catch(err) {
+      listEl.innerHTML = '<div class="admin-empty" style="color:var(--error);">Erreur de chargement.</div>';
+    }
+  },
+
+  async adminQuickActivate(code) {
+    const secret = UI.getAdminSecret();
+    if (!secret) return;
+    
+    if (!confirm(`Confirmer le paiement et activer l'accès VIP pour ${code} ?`)) return;
+    
+    try {
+      UI.showToast(`Activation de ${code} en cours...`);
+      const res = await fetch(`${API_BASE}/admin/quick-activate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, secret })
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        UI.showToast(data.message);
+        UI.loadPendingPayments();
+        UI.loadCrm(); // Refresh totals
+      } else {
+        UI.showToast(`❌ Erreur : ${data.error}`);
+      }
+    } catch(err) {
+      UI.showToast(`❌ Erreur réseau.`);
     }
   },
 
@@ -2516,9 +2640,15 @@ const Enhancements = {
   /* ---- Boot all enhancements ---- */
   init() {
     this.initSwipeDismiss();
-    this.startGainPopups();
+    // Only show social proof popups to non-VIP users
+    if (!STATE.isVip) {
+      this.startGainPopups();
+    }
     this.initCarouselDots();
-    this.startFlashTimer();
+    // Only show flash timer to non-VIP users
+    if (!STATE.isVip) {
+      this.startFlashTimer();
+    }
     this.checkHistoryConfetti();
   }
 };
