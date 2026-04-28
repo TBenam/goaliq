@@ -267,8 +267,8 @@ export async function runDailyAnalysis() {
   // ── STEP 1: Score ALL matches with Poisson engine ──
   // First pass: strict 35% Quality Gate
   let ranked = rankMatchesByQuality(allMatches, { minConfidence: 35 });
-  const VIP_TARGET = 15; // Set to 15 minimum as requested
-  const FREE_TARGET = 5;
+  const VIP_TARGET = 5; // Updated to 5 as requested
+  const FREE_TARGET = 5; // 5 best for free as requested
 
   logger.info(`[Pipeline] ✅ ${ranked.length}/${allMatches.length} matchs ont passé le Quality Gate strict (35%)`);
 
@@ -363,6 +363,14 @@ export async function runDailyAnalysis() {
       prono: analysis.prono_principal,
       cote: analysis.cote_estimee,
       fiabilite: analysis.fiabilite,
+      evenements_secondaires: (scoring.markets || [])
+        .filter(m => m.label !== analysis.prono_principal && m.prob >= 50)
+        .slice(0, 4)
+        .map(m => ({
+          label: m.label,
+          prob: Math.round(m.prob),
+          cote: m.bookmakerOdd || m.estimatedOdds
+        })),
       is_vip: isVip,
       is_risky: scoring.isRisky || false,
       result: null,

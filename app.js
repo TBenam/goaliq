@@ -571,6 +571,8 @@ function mapPronoForUi(prono = {}, options = {}) {
     description: prono.description || prono.analyse_courte || '',
     analyse_vip: prono.analyse_vip || '',
     is_offered_free: Boolean(prono.is_offered_free),
+    is_risky: Boolean(prono.is_risky),
+    evenements_secondaires: hideDetails ? [] : (prono.evenements_secondaires || []),
     locked
   };
 }
@@ -1108,11 +1110,21 @@ const C = {
     const countdownHtml = prono.kickoff ? Enhancements.buildCountdownBadge(prono.kickoff) : '';
     const liveStatus = Enhancements.getLiveStatus(prono);
     const risk = getRiskProfile(prono);
+    const secondaryEvents = (prono.evenements_secondaires || []).slice(0, 4);
+    const secondaryHtml = secondaryEvents.length > 0 ? `
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--outline-variant, rgba(255,255,255,0.08));">
+          <div style="font-size:0.65rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--outline);margin-bottom:6px;">Autres événements détectés</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;">
+            ${secondaryEvents.map(e => `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--surface-container-high, rgba(255,255,255,0.06));border-radius:8px;padding:4px 10px;font-size:0.72rem;font-weight:600;color:var(--on-surface-variant);">${e.label} <span style="color:var(--primary);font-weight:800;">${e.prob}%</span> <span style="opacity:0.5;">@${typeof e.cote === 'number' ? e.cote.toFixed(2) : e.cote}</span></span>`).join('')}
+          </div>
+        </div>` : '';
+    const riskyBadge = prono.is_risky ? '<span class="badge" style="margin-left:6px;background:linear-gradient(135deg,#ff6b35,#ff4444);color:#fff;font-size:0.6rem;font-weight:800;letter-spacing:0.04em;animation:pulse-badge 2s infinite;">⚠ RISQUÉ</span>' : '';
     return `
       <div class="match-card mb-4">
         <div class="match-header">
           <span class="badge badge-primary">${prono.competition}</span>
           ${prono.is_offered_free ? '<span class="badge badge-gold" style="margin-left:6px;animation:pulse-badge 2s infinite;">🎁 VIP OFFERT</span>' : ''}
+          ${riskyBadge}
           <div class="match-time-stack">
             ${liveStatus ? `<span class="live-badge">${liveStatus}</span>` : ''}
             ${countdownHtml}
@@ -1140,7 +1152,8 @@ const C = {
             <div class="match-odds">@${prono.cote}</div>
           </div>
         </div>
-        <div class="progress-bar-track" style="margin-bottom:4px;">
+        ${secondaryHtml}
+        <div class="progress-bar-track" style="margin-bottom:4px;margin-top:10px;">
           <div class="progress-bar-fill" style="width:${prono.fiabilite}%;"></div>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.65rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--outline);">

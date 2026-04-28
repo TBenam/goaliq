@@ -526,6 +526,40 @@ export function scoreMatch(match, options = {}) {
     });
   }
 
+  // 7j. Draw
+  if (poisson.drawProb >= 28) {
+    markets.push({
+      type: 'draw',
+      label: 'Match Nul',
+      prob: poisson.drawProb,
+      estimatedOdds: Math.round((100 / poisson.drawProb) * 100) / 100,
+      strength: poisson.drawProb >= 35 ? 'strong' : 'moderate'
+    });
+  }
+
+  // 7k. Over 3.5
+  if (poisson.over35Prob >= 45) {
+    markets.push({
+      type: 'over_35',
+      label: 'Plus de 3.5 buts',
+      prob: poisson.over35Prob,
+      estimatedOdds: Math.round((100 / poisson.over35Prob) * 100) / 100,
+      strength: poisson.over35Prob >= 55 ? 'strong' : 'moderate'
+    });
+  }
+
+  // 7l. Double Chance 12 (no draw)
+  const noDrawProb = poisson.homeWinProb + poisson.awayWinProb;
+  if (noDrawProb >= 70) {
+    markets.push({
+      type: 'double_chance_12',
+      label: `${match.home_team} ou ${match.away_team} (pas de nul)`,
+      prob: noDrawProb,
+      estimatedOdds: Math.round((100 / noDrawProb) * 100) / 100,
+      strength: noDrawProb >= 80 ? 'strong' : 'moderate'
+    });
+  }
+
   const pricedMarkets = markets
     .map(m => enrichMarketWithPricing(m, realOdds))
     .sort((a, b) => {
