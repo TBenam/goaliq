@@ -409,7 +409,16 @@ export async function fetchMatches() {
   logger.info(`[Collector] ${allFixtures.length} matchs bruts récupérés (${todayFixtures.length} aujourd'hui + ${tomorrowFixtures.length} demain)`);
 
   if (allFixtures.length === 0) {
-    logger.warn('[Collector] Aucun match trouvé depuis l\'API.');
+    logger.warn('[Collector] Aucun match trouvé depuis l\'API (quota atteint ou erreur). Tentative de récupération depuis le cache local...');
+    const cached = cacheRead('matches');
+    if (cached && cached.data && cached.data.length > 0) {
+      // Check if matches are for today or tomorrow
+      const recentMatches = cached.data.filter(m => new Date(m.kickoff) >= new Date(today));
+      if (recentMatches.length > 0) {
+         logger.info(`[Collector] ✅ Secours réussi: Utilisation de ${recentMatches.length} matchs déjà en cache.`);
+         return recentMatches;
+      }
+    }
     return [];
   }
 
