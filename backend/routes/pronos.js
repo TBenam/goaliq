@@ -74,6 +74,11 @@ function formatProno(p, includeVipAnalysis = false) {
     description: p.analyse_courte,
     marche_alternatif: p.marche_alternatif,
     cote_alternatif: p.cote_marche_alternatif,
+    confidence_index: p.scoring_data?.indices?.goalIqIndex || p.fiabilite,
+    trap_index: includeVipAnalysis ? p.scoring_data?.indices?.trapIndex : undefined,
+    chaos_index: includeVipAnalysis ? p.scoring_data?.indices?.chaosIndex : undefined,
+    value_index: includeVipAnalysis ? p.scoring_data?.indices?.valueIndex : undefined,
+    top_free_markets: p.scoring_data?.productLayers?.free?.markets || [],
     is_vip: p.is_vip,
     is_offered_free: p.is_offered_free || false,
     result: p.result || null,
@@ -84,6 +89,12 @@ function formatProno(p, includeVipAnalysis = false) {
     base.analyse_vip = p.analyse_vip;
     base.conseil_bankroll = p.conseil_bankroll;
     base.valeur_detectee = p.valeur_detectee;
+    base.lambda_home = p.scoring_data?.lambda_home;
+    base.lambda_away = p.scoring_data?.lambda_away;
+    base.top_scores = p.scoring_data?.topScores || [];
+    base.markets = p.scoring_data?.markets || [];
+    base.vip_layers = p.scoring_data?.productLayers?.vip || null;
+    base.pro_layers = p.scoring_data?.productLayers?.pro || null;
     base.scoring_data = p.scoring_data;
   }
 

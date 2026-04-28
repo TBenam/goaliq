@@ -23,6 +23,10 @@ function getGroqClient() {
   return groqClient;
 }
 
+function aiNarrativeEnabled() {
+  return String(process.env.ENABLE_AI_NARRATIVE || '').toLowerCase() === 'true';
+}
+
 // ── Maximum free pronos ──────────────────────────────
 const MAX_FREE_PRONOS = 4;
 const DEFAULT_MAX_GROQ_MATCHES = 35; // Increased from 6 to support 15-20 VIP matches
@@ -58,6 +62,15 @@ async function analyzeMatchWithGroq(match, scoring) {
   const bestMkt = scoring.bestMarket;
   const h2h = scoring.h2hSummary;
   const apiPred = scoring.apiPredictions;
+  const engineDecision = buildFallbackAnalysis(match, scoring);
+  if (!engineDecision) return null;
+  if (!aiNarrativeEnabled()) {
+    return {
+      ...engineDecision,
+      analysis_source: 'scoring_engine',
+      analysis_note: 'IA narrative desactivee: decision et analyse generees par le moteur statistique.'
+    };
+  }
 
   const userPrompt = `MATCH: ${match.home_team} vs ${match.away_team}
 COMPÉTITION: ${match.league_name} (${match.league_country || ''})
@@ -141,7 +154,13 @@ JSON requis:
 
   try {
     const groq = getGroqClient();
-    if (!groq) throw new Error('GROQ_API_KEY manquant');
+    if (!groq) {
+      return {
+        ...engineDecision,
+        analysis_source: 'scoring_engine',
+        analysis_note: 'IA desactivee: decision et analyse generees par le moteur statistique.'
+      };
+    }
 
     const completion = await groq.chat.completions.create({
       messages: [
@@ -178,23 +197,20 @@ JSON requis:
       }
     }
 
-    // Reject inflated fiabilite
-    if (result.fiabilite > 90) result.fiabilite = 85;
-    if (scoring.confidence === 'low' && result.fiabilite > 70) result.fiabilite = 65;
-    if (scoring.confidence === 'medium' && result.fiabilite > 82) result.fiabilite = 78;
-
     return {
-      ...result,
-      analysis_source: 'groq',
+      ...engineDecision,
+      analyse_courte: result.analyse_courte || engineDecision.analyse_courte,
+      analyse_vip: result.analyse_vip || engineDecision.analyse_vip,
+      tags_marketing: Array.isArray(result.tags_marketing) ? result.tags_marketing : engineDecision.tags_marketing,
+      conseil_bankroll: result.conseil_bankroll || engineDecision.conseil_bankroll,
+      analysis_source: 'groq_narrative_only',
       analysis_model: 'llama-3.3-70b-versatile'
     };
   } catch (err) {
     logger.warn(`[Groq] Erreur ${match.home_team} vs ${match.away_team}:`, err.message);
-    const fallback = buildFallbackAnalysis(match, scoring);
-    if (!fallback) return null;
     return {
-      ...fallback,
-      analysis_source: 'fallback',
+      ...engineDecision,
+      analysis_source: 'scoring_engine',
       analysis_error: err.message
     };
   }
@@ -204,21 +220,28 @@ JSON requis:
 function buildFallbackAnalysis(match, scoring) {
   const bestMkt = scoring.bestMarket;
   if (!bestMkt) return null; // No market = no prono
+  const topScores = scoring.topScores || scoring.poisson?.topScores || [];
+  const valueText = typeof bestMkt.valueEdge === 'number'
+    ? ` Edge modele: ${bestMkt.valueEdge > 0 ? '+' : ''}${bestMkt.valueEdge} pts vs marche.`
+    : '';
+  const risk = scoring.riskLabel || (scoring.confidenceScore >= 65 ? 'Faible' : 'Moyen');
+  const fiabilite = Math.round(Math.min(86, Math.max(45, scoring.confidenceScore || bestMkt.prob)));
+  const category = scoring.recommendedCategory || (bestMkt.prob >= 65 ? 'Safe' : 'Value');
 
   return {
     skip: false,
     prono_principal: bestMkt.label,
-    cote_estimee: bestMkt.estimatedOdds,
-    fiabilite: Math.min(70, Math.round(bestMkt.prob * 0.85)),
-    categorie: bestMkt.prob >= 65 ? 'Safe' : 'Value',
-    analyse_courte: `GOLIAT retient ce marche car plusieurs signaux convergent. ${scoring.signals.slice(0, 2).join('. ')}.`,
-    analyse_vip: `Lecture GOLIAT: xG ${match.home_team} ${scoring.homeXg} | ${match.away_team} ${scoring.awayXg}. ${scoring.signals.join('. ')}. ${scoring.warnings.length > 0 ? 'Points de vigilance: ' + scoring.warnings.join('. ') : ''}`,
+    cote_estimee: bestMkt.bookmakerOdd || bestMkt.estimatedOdds,
+    fiabilite,
+    categorie: category,
+    analyse_courte: `Moteur GOLIAT: ${bestMkt.label} ressort a ${bestMkt.prob}% avec une confiance ${fiabilite}%. ${scoring.signals.slice(0, 2).join('. ')}.`,
+    analyse_vip: `Decision statistique GOLIAT: lambda ${match.home_team} ${scoring.homeXg} | ${match.away_team} ${scoring.awayXg}, total attendu ${scoring.totalXg}. Le marche retenu est ${bestMkt.label} (${bestMkt.prob}%, fair odds ${bestMkt.fairOdds}). Top scores: ${topScores.slice(0, 3).map(s => `${s.score} ${s.prob}%`).join(', ')}.${valueText} Indices: GoalIQ ${scoring.indices?.goalIqIndex}/100, Trap ${scoring.indices?.trapIndex}/100, Chaos ${scoring.indices?.chaosIndex}/100. ${scoring.warnings.length > 0 ? 'Vigilance: ' + scoring.warnings.join('. ') : 'Aucune alerte majeure.'}`,
     marche_alternatif: scoring.markets[1]?.label || 'Double Chance',
-    cote_marche_alternatif: scoring.markets[1]?.estimatedOdds || 1.40,
-    risque: scoring.confidence === 'high' ? 'Faible' : 'Moyen',
-    valeur_detectee: bestMkt.strength === 'strong' || bestMkt.valueEdge >= 3,
-    tags_marketing: [match.league_name, bestMkt.type.replace('_', ' ')],
-    conseil_bankroll: scoring.confidence === 'high' ? '3% de mise' : '2% de mise'
+    cote_marche_alternatif: scoring.markets[1]?.bookmakerOdd || scoring.markets[1]?.estimatedOdds || 1.40,
+    risque: risk,
+    valeur_detectee: bestMkt.valueEdge >= 3,
+    tags_marketing: [match.league_name, bestMkt.family, bestMkt.valueLabel].filter(Boolean),
+    conseil_bankroll: scoring.confidenceScore >= 75 ? '2.5% de mise' : scoring.confidenceScore >= 65 ? '2% de mise' : '1% de mise'
   };
 }
 
@@ -240,9 +263,9 @@ export async function runDailyAnalysis() {
   const start = Date.now();
 
   if (!process.env.GROQ_API_KEY) {
-    logger.error('[Groq] GROQ_API_KEY manquant !');
-    cacheWrite('pronos', []);
-    return [];
+    logger.warn('[Pipeline] GROQ_API_KEY absent: mode 100% moteur statistique active.');
+  } else if (!aiNarrativeEnabled()) {
+    logger.info('[Pipeline] ENABLE_AI_NARRATIVE=false: Groq ignore, mode 100% moteur statistique active.');
   }
 
   // ── Read matches from local cache ──────────────────
@@ -307,7 +330,7 @@ export async function runDailyAnalysis() {
   const vipCandidates = ranked.slice(0, VIP_TARGET);
   const freeCandidates = ranked.slice(VIP_TARGET, VIP_TARGET + FREE_TARGET);
 
-  logger.info(`[Pipeline] 🎯 Plan: ${vipCandidates.length} VIP (IA Groq) | ${freeCandidates.length} Gratuits (Scoring Math)`);
+  logger.info(`[Pipeline] Plan: ${vipCandidates.length} VIP (moteur + narration IA optionnelle) | ${freeCandidates.length} Gratuits (moteur)`);
 
   const pronos = [];
   let freeCount = 0, vipCount = 0, skipped = 0;
@@ -377,16 +400,27 @@ export async function runDailyAnalysis() {
       scoring_data: {
         homeXg: scoring.homeXg,
         awayXg: scoring.awayXg,
+        lambda_home: scoring.lambda_home,
+        lambda_away: scoring.lambda_away,
+        totalXg: scoring.totalXg,
         poisson: scoring.poisson,
         confidence: scoring.confidence,
+        confidenceLabel: scoring.confidenceLabel,
         confidenceScore: scoring.confidenceScore,
+        finalScore: scoring.finalScore,
+        riskScore: scoring.riskScore,
+        riskLabel: scoring.riskLabel,
+        indices: scoring.indices,
+        modelAgreement: scoring.modelAgreement,
         dataQuality: scoring.dataQuality,
         aiPriorityScore: scoring.aiPriorityScore,
         bestMarket: scoring.bestMarket,
+        markets: scoring.markets,
+        productLayers: scoring.productLayers,
         topScores: scoring.topScores
       },
       internal_audit: {
-        analysis_source: isVip ? 'groq_ai' : 'scoring_engine',
+        analysis_source: analysis.analysis_source || 'scoring_engine',
         analysis_model: analysis.analysis_model || null,
         generated_at: new Date().toISOString()
       }
