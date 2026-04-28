@@ -336,11 +336,38 @@ function buildMarkets(match, poisson, realOdds) {
       strength: prob >= 74 ? 'premium' : prob >= 64 ? 'strong' : prob >= 54 ? 'solid' : 'speculative'
     }, realOdds))
     .sort((a, b) => {
-      const familySafety = { double_chance: 5, goals: 4, btts: 3, '1x2': 2 };
-      const aScore = a.prob + a.valueScore + (familySafety[a.family] || 0);
-      const bScore = b.prob + b.valueScore + (familySafety[b.family] || 0);
+      const marketPriority = {
+        double_chance_1X: 8,
+        double_chance_X2: 8,
+        over_15: 7,
+        btts_yes: 6,
+        home_win: 5,
+        away_win: 5,
+        over_25: 4,
+        under_25: 2,
+        btts_no: 1,
+        under_35: -18,
+        double_chance_12: -4,
+        draw: -8,
+        over_35: -6
+      };
+      const aScore = a.prob + a.valueScore + (marketPriority[a.type] || 0);
+      const bScore = b.prob + b.valueScore + (marketPriority[b.type] || 0);
       return bScore - aScore;
     });
+}
+
+function isPrimaryMarketAllowed(market, poisson, totalXg) {
+  if (!market || market.valueLabel === 'bad_price') return false;
+  if (market.type === 'under_35') {
+    return market.prob >= 84 && poisson.under25Prob >= 58 && totalXg <= 2.45 && market.valueEdge >= 3;
+  }
+  if (market.type === 'double_chance_12') return market.prob >= 76 && market.valueEdge >= 3;
+  if (market.type === 'draw') return market.prob >= 34 && market.valueEdge >= 5;
+  if (market.family === 'double_chance') return market.prob >= 68;
+  if (market.type === 'over_15') return market.prob >= 72;
+  if (market.type === 'under_25') return market.prob >= 62 || market.valueEdge >= 4;
+  return market.prob >= 54;
 }
 
 function computeDataQuality({ formAvailable, apiPred, h2h, realOdds, injuries, standings, homeNext, awayNext, match }) {
@@ -494,7 +521,7 @@ function marketCategory(market) {
 
 function buildProductLayers({ markets, poisson, indices }) {
   const freeMarkets = markets
-    .filter(m => ['double_chance_1X', 'double_chance_X2', 'over_15', 'under_35', 'btts_yes'].includes(m.type))
+    .filter(m => ['double_chance_1X', 'double_chance_X2', 'over_15', 'btts_yes', 'home_win', 'away_win'].includes(m.type))
     .slice(0, 4);
 
   const vipMarkets = markets
@@ -578,12 +605,12 @@ export function scoreMatch(match, options = {}) {
     match
   });
 
-  const bestMarket = markets.find(m => {
-    if (m.valueLabel === 'bad_price') return false;
-    if (m.family === 'double_chance') return m.prob >= 68;
-    if (m.type === 'over_15') return m.prob >= 72;
-    return m.prob >= 54;
-  }) || markets.find(m => m.valueLabel !== 'bad_price') || markets[0] || null;
+  const totalXg = round2(lambdaInfo.homeLambda + lambdaInfo.awayLambda);
+  const bestMarket = markets.find(m => isPrimaryMarketAllowed(m, poisson, totalXg))
+    || markets.find(m => m.valueLabel !== 'bad_price' && m.type !== 'under_35')
+    || markets.find(m => m.valueLabel !== 'bad_price')
+    || markets[0]
+    || null;
 
   const modelAgreement = computeModelAgreement({ poisson, apiPred, bestMarket });
   const indices = computeIndices({
@@ -668,7 +695,7 @@ export function scoreMatch(match, options = {}) {
     awayXg: lambdaInfo.awayLambda,
     lambda_home: lambdaInfo.homeLambda,
     lambda_away: lambdaInfo.awayLambda,
-    totalXg: round2(lambdaInfo.homeLambda + lambdaInfo.awayLambda),
+    totalXg,
     leagueAverages: lambdaInfo.league,
     strengths: lambdaInfo.strengths,
     contextAdjustments: lambdaInfo.context,
