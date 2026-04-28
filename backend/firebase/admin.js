@@ -1,4 +1,4 @@
-﻿/* ====================================================
+/* ====================================================
    GOLIAT — Firebase Admin SDK Initialization
    Project: goliat-8bf4a
    Firestore + Auth + FCM (Cloud Messaging)
@@ -14,7 +14,8 @@ function loadServiceAccount() {
   // Priority 1: JSON string in env var
   if (process.env.FIREBASE_SERVICE_ACCOUNT && process.env.FIREBASE_SERVICE_ACCOUNT.length > 10) {
     try {
-      return JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+      const cleanJson = process.env.FIREBASE_SERVICE_ACCOUNT.trim().replace(/^['"]|['"]$/g, '');
+      return JSON.parse(cleanJson);
     } catch {
       logger.warn('[Firebase] FIREBASE_SERVICE_ACCOUNT invalide, essai du fichier...');
     }

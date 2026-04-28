@@ -4,7 +4,11 @@
    ==================================================== */
 
 import 'dotenv/config';
+import { EventEmitter } from 'events';
 import express from 'express';
+
+// Augmenter la limite pour éviter les warnings "MaxListenersExceededWarning" lors des requêtes parallèles
+EventEmitter.defaultMaxListeners = 100;
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
