@@ -245,7 +245,7 @@ function computeAiPriorityScore({ scoring, match }) {
  * Input:  match object from collectMatches.js (enriched)
  * Output: comprehensive scoring with quality gate
  */
-export function scoreMatch(match) {
+export function scoreMatch(match, options = {}) {
   const signals = [];
   const warnings = [];
 
@@ -609,9 +609,9 @@ export function scoreMatch(match) {
   const qualityGate = {
     passed: false,
     reason: '',
-    minConfidence: 35, // Reverted to 35% as requested
-    minProb: 44,       // Reverted to 44%
-    minDataQuality: 25 // Lowered from 35 to allow world leagues with less history
+    minConfidence: options.minConfidence !== undefined ? options.minConfidence : 35,
+    minProb: options.minProb !== undefined ? options.minProb : 44,
+    minDataQuality: options.minDataQuality !== undefined ? options.minDataQuality : 25
   };
 
   const needsClearWinner = ['home_win', 'away_win'].includes(bestMarket?.type);
@@ -720,9 +720,9 @@ export function scoreMatch(match) {
 /**
  * Rank matches by analysis quality — best first.
  */
-export function rankMatchesByQuality(matches) {
+export function rankMatchesByQuality(matches, options = {}) {
   return matches
-    .map(m => ({ match: m, scoring: scoreMatch(m) }))
+    .map(m => ({ match: m, scoring: scoreMatch(m, options) }))
     .filter(({ scoring }) => scoring.qualityGate.passed)
     .sort((a, b) => {
       // Primary: AI Priority Score

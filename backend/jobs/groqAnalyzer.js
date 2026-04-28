@@ -265,25 +265,45 @@ export async function runDailyAnalysis() {
   logger.info(`[Pipeline] 📋 ${allMatches.length} matchs dans le pipeline`);
 
   // ── STEP 1: Score ALL matches with Poisson engine ──
-  logger.info('[Pipeline] 🧮 Étape 1: Scoring Poisson de tous les matchs...');
-  const ranked = rankMatchesByQuality(allMatches);
+  // First pass: strict 35% Quality Gate
+  let ranked = rankMatchesByQuality(allMatches, { minConfidence: 35 });
+  const VIP_TARGET = 15; // Set to 15 minimum as requested
+  const FREE_TARGET = 5;
 
-  logger.info(`[Pipeline] ✅ ${ranked.length}/${allMatches.length} matchs ont passé le Quality Gate`);
+  logger.info(`[Pipeline] ✅ ${ranked.length}/${allMatches.length} matchs ont passé le Quality Gate strict (35%)`);
+
+  // Second pass: fallback if we don't have enough matches
+  if (ranked.length < (VIP_TARGET + FREE_TARGET)) {
+    const needed = (VIP_TARGET + FREE_TARGET) - ranked.length;
+    logger.info(`[Pipeline] ⚠️ Objectif non atteint (${ranked.length}/${VIP_TARGET + FREE_TARGET}). Baisse des critères à 22% pour trouver ${needed} matchs...`);
+    
+    const passedIds = new Set(ranked.map(r => r.match.fixture_id));
+    const remainingMatches = allMatches.filter(m => !passedIds.has(m.fixture_id));
+    
+    let fallbackRanked = rankMatchesByQuality(remainingMatches, { minConfidence: 22, minDataQuality: 20 });
+    
+    // Mark them as risky
+    fallbackRanked = fallbackRanked.map(r => {
+      r.scoring.isRisky = true;
+      return r;
+    });
+    
+    logger.info(`[Pipeline] 🚨 ${fallbackRanked.length} matchs "Risqués" repêchés à 22%`);
+    ranked = [...ranked, ...fallbackRanked];
+  }
+
   const rejected = allMatches.length - ranked.length;
   if (rejected > 0) {
-    logger.info(`[Pipeline] 🚫 ${rejected} matchs rejetés (données insuffisantes ou match trop incertain)`);
+    logger.info(`[Pipeline] 🚫 ${rejected} matchs rejetés (trop incertains même à 22%)`);
   }
 
   if (ranked.length === 0) {
-    logger.warn('[Pipeline] Aucun match n\'a passé le Quality Gate. Aucun prono généré.');
+    logger.warn('[Pipeline] Aucun match n\'a passé les Quality Gates. Aucun prono généré.');
     cacheWrite('pronos', []);
     return [];
   }
 
   // ── STEP 2: Separate VIP (Groq) and Free (Algorithmic) ──
-  const VIP_TARGET = 18;
-  const FREE_TARGET = 7; // Increased slightly
-
   const vipCandidates = ranked.slice(0, VIP_TARGET);
   const freeCandidates = ranked.slice(VIP_TARGET, VIP_TARGET + FREE_TARGET);
 
@@ -344,6 +364,7 @@ export async function runDailyAnalysis() {
       cote: analysis.cote_estimee,
       fiabilite: analysis.fiabilite,
       is_vip: isVip,
+      is_risky: scoring.isRisky || false,
       result: null,
       scoring_data: {
         homeXg: scoring.homeXg,
